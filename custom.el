@@ -95,9 +95,10 @@
       (null-device . "/dev/null"))))
  '(org-fold-catch-invisible-edits 'smart nil nil "Customized with use-package org")
  '(package-selected-packages
-   '(denote-menu hl-todo consult-notes no-littering denote emacsql-sqlite-module emacsql-sqlite-builtin org-roam all-the-icons-completion xwwp csv-mode highlight-indent-guides persistent-scratch emacs-zmq emacs-zmq jupyter dap-mode flymake-ruff lsp-pyright lsp-ui lsp-mode direnv vc-use-package pet envrc inheritenv org-modern nix-mode hydra diff-hl git-timemachine magit pyvenv vterm-toggle vterm evil-goggles eros numpydoc transpose-frame doom-modeline kind-icon rainbow-delimiters dired-subtree dired-hide-dotfiles all-the-icons-dired dired evil-org-mode evil-org-mode evil-cleverparens evil-surround corfu-terminal evil-collection elisp-demos cape all-the-icons org-appear evil-nerd-commenter embark-consult exec-path-from-shell orderless helpful marginalia vertico keycast))
+   '(xwwp-full xwwp-full denote-menu hl-todo consult-notes no-littering denote emacsql-sqlite-module emacsql-sqlite-builtin org-roam all-the-icons-completion xwwp csv-mode highlight-indent-guides persistent-scratch emacs-zmq emacs-zmq jupyter dap-mode flymake-ruff lsp-pyright lsp-ui lsp-mode direnv vc-use-package pet envrc inheritenv org-modern nix-mode hydra diff-hl git-timemachine magit pyvenv vterm-toggle vterm evil-goggles eros numpydoc transpose-frame doom-modeline kind-icon rainbow-delimiters dired-subtree dired-hide-dotfiles all-the-icons-dired dired evil-org-mode evil-org-mode evil-cleverparens evil-surround corfu-terminal evil-collection elisp-demos cape all-the-icons org-appear evil-nerd-commenter embark-consult exec-path-from-shell orderless helpful marginalia vertico keycast))
  '(package-vc-selected-packages
-   '((jupyter :vc-backend Git :url "https://github.com/nnicandro/emacs-jupyter")))
+   '((xwwp-full :vc-backend Git :url "https://github.com/kchanqvq/xwwp")
+     (vc-use-package :vc-backend Git :url "https://github.com/slotThe/vc-use-package")))
  '(safe-local-variable-values
    '((eval add-hook 'after-save-hook
            (lambda nil

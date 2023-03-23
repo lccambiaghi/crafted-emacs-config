@@ -6,7 +6,10 @@
 
 (use-package emacs
   :init
-  (defvar user-config-directory crafted-config-path))
+  (defvar user-config-directory crafted-config-path)
+  (defvar lc/use-xwwp nil)
+  ;; fix void-variable in some packages e.g. helpful
+  (defvar read-symbol-positions-list nil))
 
 (use-package emacs
   :hook
@@ -19,10 +22,6 @@
       ;; Dynamic scoping to the rescue
       (let ((org-confirm-babel-evaluate nil))
         (org-babel-tangle)))))
-
-(use-package emacs
-  :init
-  (defvar read-symbol-positions-list nil))
 
 (use-package helpful
   :config
@@ -85,13 +84,15 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
   (defun github-code-search ()
     "Search code on github for a given language."
     (interactive)
-    (let ((language (completing-read
+    (let* ((language (completing-read
                      "Language: "
                      '("Emacs Lisp" "Python"  "Clojure" "R")))
-          (code (read-string "Code: ")))
-      (browse-url
-       (concat "https://github.com/search?l=" language
-               "&type=code&q=" code))))
+          (code (read-string "Code: "))
+          (url (concat "https://github.com/search?l=" language "&type=code&q=" code)))
+      (if lc/use-xwwp
+          (let ((current-prefix-arg 4)) (xwwp url))
+          ;; (progn (evil-window-vsplit) (xwwp-browse-url-other-window url t))
+          (browse-url url))))
   )
 
 (use-package emacs
@@ -245,6 +246,7 @@ manual."
   (setq crafted-startup-inhibit-splash t))
 
 (use-package all-the-icons-completion
+  :if (display-graphic-p)
   :after (marginalia all-the-icons)
   :hook (marginalia-mode . all-the-icons-completion-marginalia-setup)
   :init
@@ -302,7 +304,7 @@ manual."
   ("C-p" . 'consult-yank-pop)
   ("<insert-state>C-p" . 'consult-yank-pop)
   ("M-p" . 'consult-toggle-preview)
-  :init
+  :config
   (consult-customize
    consult-ripgrep consult-git-grep consult-grep
    consult-bookmark consult-recent-file consult-xref
@@ -331,7 +333,7 @@ manual."
   :hook
   (dired-mode . denote-dired-mode)
   :bind
-  ("<leader>nf" . 'denote-open-or-create)
+  ("<leader>nn" . 'denote-open-or-create)
   ("<leader>nk" . 'denote-keywords-add)
   ("<leader>nK" . 'denote-keywords-remove)
   ("<leader>nr" . 'denote-rename-file)
@@ -369,10 +371,12 @@ manual."
   )
 
 (use-package denote-menu
+  :commands
+  (list-denotes)
   :after
   (denote)
   :bind
-  ("<leader>nn" . (lambda () (interactive)
+  ("<leader>nm" . (lambda () (interactive)
                     (tabspaces-switch-or-create-workspace "denote") (list-denotes)))
   ("<leader>nf" . 'denote-menu-filter-by-keyword)
   ("<leader>nF" . 'denote-menu-clear-filters)
@@ -381,14 +385,13 @@ manual."
 (use-package dired
   :ensure nil
   :bind
-  ((:map evil-normal-state-map
-         ("<leader>fd" . 'dired)
-         ("<leader>fj" . 'dired-jump))
-   (:map dired-mode-map
-         ;; open in finder
-         ("F" . (lambda () (interactive)
-                  (let ((fn (dired-get-file-for-visit)))
-                    (start-process "open-directory" nil "open" "-R" fn))))))
+  ("<leader>fd" . 'dired)
+  ("<leader>fj" . 'dired-jump)
+  (:map dired-mode-map
+        ;; open in finder
+        ("F" . (lambda () (interactive)
+                 (let ((fn (dired-get-file-for-visit)))
+                   (start-process "open-directory" nil "open" "-R" fn)))))
   :hook
   (dired-mode . dired-hide-details-mode)
   :custom
@@ -407,14 +410,14 @@ manual."
     "H" 'dired-hide-dotfiles-mode))
 
 (use-package dired-subtree
-  :after
-  (dired evil)
   :init
   (advice-add 'dired-subtree-toggle
               :after (lambda () (interactive)
                        (when all-the-icons-dired-mode (revert-buffer))))
-  (evil-collection-define-key 'normal 'dired-mode-map
-    "i" 'dired-subtree-toggle))
+  :config
+  (with-eval-after-load 'evil
+    (evil-collection-define-key 'normal 'dired-mode-map
+      "i" 'dired-subtree-toggle)))
 
 (use-package all-the-icons-dired
   :if (display-graphic-p)
@@ -517,12 +520,12 @@ be passed to EVAL-FUNC as its rest arguments"
 
 (use-package evil-nerd-commenter
   :bind
-  ((:map evil-normal-state-map
-         ("gc" . 'evilnc-comment-operator)
-         ("gC" . 'evilnc-copy-and-comment-operator))
-   (:map evil-visual-state-map
-         ("gc" . 'evilnc-comment-operator)
-         ("gC" . 'evilnc-copy-and-comment-operator))))
+  (:map evil-normal-state-map
+        ("gc" . 'evilnc-comment-operator)
+        ("gC" . 'evilnc-copy-and-comment-operator))
+  (:map evil-visual-state-map
+        ("gc" . 'evilnc-comment-operator)
+        ("gC" . 'evilnc-copy-and-comment-operator)))
 
 (use-package evil-surround
   :after evil
@@ -543,6 +546,7 @@ be passed to EVAL-FUNC as its rest arguments"
   (evil-goggles-use-diff-faces))
 
 (use-package evil-cleverparens
+  :after (evil)
   :hook
   (emacs-lisp-mode . lc/init-cleverparens)
   :init
@@ -587,7 +591,7 @@ be passed to EVAL-FUNC as its rest arguments"
   :after evil
   :bind
   ("<leader>ww" . 'evil-windows-hydra/body)
-  :init
+  :config
   (defhydra evil-windows-hydra (:hint nil
                                       ;; :pre (smerge-mode 1)
                                       ;; :post (smerge-auto-leave)
@@ -621,28 +625,13 @@ be passed to EVAL-FUNC as its rest arguments"
   :bind
   ("<leader>pf" . 'project-find-file)
   :init
-  ;; (defun lc/project-try-local (dir)
-  ;;   "Determine if DIR is a non-Git project."
-  ;;   (catch 'ret
-  ;;     (let ((pr-flags '((".project")
-  ;;                       ("pyproject.toml" "compile_flags.txt") ;; higher priority
-  ;;                       ("Makefile" "README.org" "README.md"))))
-  ;;       (dolist (current-level pr-flags)
-  ;;         (dolist (f current-level)
-  ;;           (when-let ((root (locate-dominating-file dir f)))
-  ;;             (throw 'ret (cons 'go-module root))))))))
-  ;; (cl-defmethod project-root ((project (head go-module)))
-  ;;   (cdr project))
-  ;; (add-to-list 'project-find-functions #'lc/project-try-local)
-
   (setq project-vc-extra-root-markers '("pyrpoject.toml" ".project"))
   (setq project-vc-ignores '(".idea" ".vscode" ".direnv"))
   )
 
 (use-package rainbow-delimiters
-  :hook ((emacs-lisp-mode . rainbow-delimiters-mode)
-         (clojure-mode . rainbow-delimiters-mode))
-  )
+  :hook
+  (emacs-lisp-mode clojure-mode))
 
 (use-package transpose-frame
   :bind
@@ -653,8 +642,6 @@ be passed to EVAL-FUNC as its rest arguments"
 (use-package tabspaces
   :commands
   (tabspaces-switch-or-create-workspace)
-  :hook
-  (after-init-hook . 'lc/setup-tabspaces)
   :bind
   ("<leader>pp" . 'tabspaces-open-or-create-project-and-workspace)
   ;; add new project to list
@@ -674,7 +661,7 @@ be passed to EVAL-FUNC as its rest arguments"
   ;; sessions
   (tabspaces-session t)
   ;; (tabspaces-session-auto-restore t)
-  :init
+  :preface
   (defun lc/setup-tabspaces ()
     "Set up tabspace at startup."
     ;; Add *Messages* and *splash* to Tab \`Home\'
@@ -686,6 +673,7 @@ be passed to EVAL-FUNC as its rest arguments"
                              'buffer-list
                              (cons (get-buffer "*Messages*") (frame-parameter nil 'buffer-list))))))
   :config
+  (lc/setup-tabspaces)
   ;; Filter Buffers for Consult-Buffer
   (with-eval-after-load 'consult
     ;; hide full buffer list (still available with "b" prefix)
@@ -708,6 +696,8 @@ be passed to EVAL-FUNC as its rest arguments"
 
 (use-package emacs
   :ensure nil
+  :custom
+  (treesit-font-lock-level 4)
   :init
   (require 'treesit)
   (when (treesit-ready-p 'python)
@@ -747,15 +737,20 @@ be passed to EVAL-FUNC as its rest arguments"
   :custom
   (vterm-toggle-scope 'project))
 
-(use-package xwwp
+(use-package xwwp-full
+  :vc (:fetcher "github" :repo "kchanqvq/xwwp")
   :commands
-  (xwwp)
+  (xwwp xwwp-browse-url-other-window)
   :bind
   ("<leader>xx" .  (lambda () (interactive)
                      (let ((current-prefix-arg 4)) ;; emulate C-u universal arg
                        (call-interactively 'xwwp))))
   ("<leader>xl" .  'xwwp-follow-link)
   ("<leader>xb" .  'xwidget-webkit-back)
+  :custom
+  (xwwp-follow-link-completion-system 'default)
+  :config
+  (require 'cl)
   )
 
 (use-package magit
@@ -819,14 +814,12 @@ be passed to EVAL-FUNC as its rest arguments"
   ;; (setq diff-hl-global-modes (not '(image-mode org-mode)))
   )
 
-(use-package smerge-mode
-  :ensure nil
-  :after hydra
+(use-package hydra
   :bind
   ("<leader>gm" . 'smerge-hydra/body)
   :hook
   (magit-diff-visit-file . (lambda () (when smerge-mode (smerge-hydra/body))))
-  :init
+  :config
   (defhydra smerge-hydra
     ;; Disable `smerge-mode' when quitting hydra if no merge conflicts remain.
     (:hint nil :pre (smerge-mode 1) :post (smerge-auto-leave))
@@ -863,6 +856,7 @@ be passed to EVAL-FUNC as its rest arguments"
     ("q" nil :color blue)))
 
 (use-package org
+  :ensure nil
   :bind
   (:map org-mode-map
         ("<localleader>a" . 'org-archive-subtree)
@@ -1011,8 +1005,8 @@ be passed to EVAL-FUNC as its rest arguments"
 
 (use-package emacs
   :hook
-  ((org-jupyter-mode . (lambda () (visual-line-mode -1)
-                         (advice-add 'org-cycle :around #'lc/org-cycle-or-py-complete)))
+  (;; (org-jupyter-mode . (lambda () (visual-line-mode -1)
+   ;;                       (advice-add 'org-cycle :around #'lc/org-cycle-or-py-complete)))
    (org-mode . (lambda () (when (lc/is-jupyter-org-buffer?) (org-jupyter-mode)))))
   :init
   (defun lc/is-jupyter-org-buffer? ()
@@ -1041,14 +1035,14 @@ be passed to EVAL-FUNC as its rest arguments"
   ([remap evil-org-org-insert-todo-heading-respect-content-below] . +org/insert-item-above) ;; "<C-S-return>"
   (:map org-mode-map
         ("RET" . 'org-open-at-point))
-  :hook ((org-mode . evil-org-mode)
-         (org-mode . (lambda ()
-                       (require 'evil-org)
-                       ;; (evil-normalize-keymaps)
-                       (evil-org-set-key-theme '(textobjects))
-                       ;; (require 'evil-org-agenda)
-                       ;; (evil-org-agenda-set-keys)
-                       )))
+  :hook
+  ((org-mode . evil-org-mode)
+   (org-mode . (lambda ()
+                 (require 'evil-org)
+                 (evil-normalize-keymaps)
+                 (evil-org-set-key-theme '(textobjects))
+                 (require 'evil-org-agenda)
+                 (evil-org-agenda-set-keys))))
   :preface
   (defun +org--insert-item (direction)
     (let ((context (org-element-lineage
@@ -1236,9 +1230,8 @@ be passed to EVAL-FUNC as its rest arguments"
 ;; (use-package inheritenv)
 
 (use-package envrc
-  :hook ((python-mode . envrc-mode)
-         (python-ts-mode . envrc-mode)
-         (org-jupyter-mode . envrc-mode)))
+  :hook
+  (python-mode python-ts-mode org-jupyter-mode))
 
 ;; (use-package direnv
 ;;  :vc (:fetcher "github" :repo "wyuenho/emacs-direnv" :rev "early-reliable-update-env")
@@ -1246,13 +1239,14 @@ be passed to EVAL-FUNC as its rest arguments"
 ;;  (direnv-mode))
 
 (use-package lsp-pyright
-  :hook (python-base-mode . (lambda ()
-                              (require 'lsp-pyright)
-                              (lc/init-pyright)
-                              (lsp-deferred)))
+  :hook
+  (python-base-mode . (lambda ()
+                        (require 'lsp-pyright)
+                        (lc/init-pyright)
+                        (lsp-deferred)))
   :custom
   (lsp-pyright-typechecking-mode "basic")
-  :init
+  :preface
   (defun lc/init-pyright ()
     (lsp-register-client
      (make-lsp-client
@@ -1425,7 +1419,7 @@ be passed to EVAL-FUNC as its rest arguments"
   :vc (:fetcher "github" :repo "nnicandro/emacs-jupyter")
   :bind
   ;; jupyter-org-interaction-mode-map
-  (:map jupyter-repl-interaction-mode-map
+  (:map python-base-mode-map
         ("<localleader>ee" . 'jupyter-eval-line-or-region)
         ;; ("<visual-state><localleader>e" . 'jupyter-eval-line-or-region)
         ("<localleader>ed" . 'jupyter-eval-defun)
@@ -1494,27 +1488,23 @@ be passed to EVAL-FUNC as its rest arguments"
 
 (use-package jupyter
   :vc (:fetcher "github" :repo "nnicandro/emacs-jupyter")
-  :after
-  (org-mode)
   :bind
   (:map org-mode-map
-   ;; insert block below
-   ("<localleader>=" . (lambda () (interactive) (jupyter-org-insert-src-block t nil)))
-   ("<localleader>," . 'org-ctrl-c-ctrl-c)
-   ("<localleader>m" . 'jupyter-org-merge-blocks)
-   ("<localleader>+" . 'jupyter-org-insert-src-block)
-   ("<localleader>?" . 'jupyter-inspect-at-point)
-   ("<localleader>x" . 'jupyter-org-kill-block-and-results))
-  :hook (;; (jupyter-org-interaction-mode . (lambda () (lc/add-local-electric-pairs '((?' . ?')))))
-         (jupyter-repl-persistent-mode . (lambda ()  ;; we activate org-interaction-mode ourselves
-                                           (when (derived-mode-p 'org-mode)
-                                             (setq-local evil-lookup-func #'jupyter-inspect-at-point)
-                                             (jupyter-org-interaction-mode))))
-         (envrc-mode . lc/load-ob-jupyter))
-  :custom
-  (org-babel-default-header-args:jupyter-python '((:async . "yes") (:pandoc t) (:kernel . "python3")))
-  (org-babel-default-header-args:jupyter-R '((:pandoc t) (:async . "yes") (:kernel . "ir")))
-  :init
+        ;; insert block below
+        ("<localleader>=" . (lambda () (interactive) (jupyter-org-insert-src-block t nil)))
+        ("<localleader>," . 'org-ctrl-c-ctrl-c)
+        ("<localleader>m" . 'jupyter-org-merge-blocks)
+        ("<localleader>+" . 'jupyter-org-insert-src-block)
+        ("<localleader>?" . 'jupyter-inspect-at-point)
+        ("<localleader>x" . 'jupyter-org-kill-block-and-results))
+  :hook
+  (;; (jupyter-org-interaction-mode . (lambda () (lc/add-local-electric-pairs '((?' . ?')))))
+   (jupyter-repl-persistent-mode . (lambda ()  ;; we activate org-interaction-mode ourselves
+                                     (when (derived-mode-p 'org-mode)
+                                       (setq-local evil-lookup-func #'jupyter-inspect-at-point)
+                                       (jupyter-org-interaction-mode))))
+   (envrc-mode . lc/load-ob-jupyter))
+  :preface
   (defun lc/org-load-jupyter ()
     (org-babel-do-load-languages 'org-babel-load-languages
                                  (append org-babel-load-languages '((jupyter . t)))))
@@ -1528,6 +1518,9 @@ be passed to EVAL-FUNC as its rest arguments"
         (when (executable-find "jupyter")
           (lc/org-load-jupyter)))))
   :config
+  (with-eval-after-load 'org
+    (setq org-babel-default-header-args:jupyter-python '((:async . "yes") (:pandoc t) (:kernel . "python3")))
+    (setq org-babel-default-header-args:jupyter-R '((:pandoc t) (:async . "yes") (:kernel . "ir"))))
   (cl-defmethod jupyter-org--insert-result (_req context result)
     (let ((str
            (org-element-interpret-data
