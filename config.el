@@ -6,12 +6,6 @@
 
 (use-package emacs
   :init
-  (unless (package-installed-p 'vc-use-package)
-    (package-vc-install "https://github.com/slotThe/vc-use-package"))
-  (require 'vc-use-package))
-
-(use-package emacs
-  :init
   (defvar user-config-directory crafted-config-path))
 
 (use-package emacs
@@ -117,9 +111,9 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
   )
 
 (use-package no-littering
-  :demand
-  :config
+  :init
   (require 'recentf)
+  (require 'no-littering)
   (add-to-list 'recentf-exclude no-littering-var-directory)
   (add-to-list 'recentf-exclude no-littering-etc-directory))
 
@@ -159,6 +153,12 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
   :init
   (add-to-list 'native-comp-bootstrap-deny-list ".*jupyter.*")
   (add-to-list 'native-comp-jit-compilation-deny-list ".*jupyter.*"))
+
+(use-package emacs
+  :init
+  (unless (package-installed-p 'vc-use-package)
+    (package-vc-install "https://github.com/slotThe/vc-use-package"))
+  (require 'vc-use-package))
 
 (use-package emacs
   :init
@@ -811,7 +811,7 @@ be passed to EVAL-FUNC as its rest arguments"
   :hook
   ((magit-pre-refresh . diff-hl-magit-pre-refresh)
    (magit-post-refresh . diff-hl-magit-post-refresh)
-   ((prog-mode org-mode) . (diff-hl-mode)))
+   (prog-mode org-mode))
   :custom
   (diff-hl-draw-borders nil)
   ;; (setq diff-hl-global-modes '(not org-mode))
