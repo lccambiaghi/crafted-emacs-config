@@ -5,14 +5,15 @@
 * About this config
 ** History
 
-After using =doom-emacs= for the whole of 2020, in early 2021 I wrote my own config from
-scratch. Over 2 years I accumulated snippets and packages for a while until it
-became slow and complex. In 2023 I decided to simplify my configuration file.
+After using [[https://github.com/doomemacs/doomemacs][doom-emacs]] for the whole of 2020, in early 2021 I wrote my
+own config from scratch. Over 2 years I accumulated snippets and
+packages for a while until it became slow and complex. In 2023 I
+decided to simplify my configuration file.
 
 Approach:
-- Use =crafted-emacs= as a solid foundation. It provides battle-tested
-  =init.el= and =early-init.el=, it provides solid defaults so I can only
-  focus on my =config.el=
+- Use [[https://github.com/SystemCrafters/crafted-emacs][crafted-emacs]] as a solid foundation. It provides battle-tested
+  =init.el= and =early-init.el=, plus solid defaults so I can focus on
+  what really matters, which is my =config.el=.
 - Cherry-pick the essential parts of my "big" vanilla config
 - Use more of the built-in packages, ~emacs29~ comes with a lot of cool
   stuff (=use-package=, =tree-sitter=, =modus-themes=). I tried to set up =eglot= but
