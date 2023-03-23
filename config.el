@@ -10,21 +10,17 @@
     (package-vc-install "https://github.com/slotThe/vc-use-package"))
   (require 'vc-use-package))
 
-  ;;; config.el -- Example Crafted Emacs user customization file -*- lexical-binding: t; -*-
-  ;; This file is generated from config.org. If you want to edit the
-  ;; configuration, DO NOT edit config.el, edit config.org, instead.
-
-  ;; Tangle the code blocks to config.el on save.
+(use-package emacs
+  :hook
+  (org-mode . (lambda ()
+                (add-hook 'after-save-hook #'org-babel-tangle-config)))
+  :init
   (defun org-babel-tangle-config ()
     (when (string-equal (buffer-file-name)
-                        (expand-file-name "config.org" crafted-config-path))
+                        (expand-file-name "readme.org" crafted-config-path))
       ;; Dynamic scoping to the rescue
       (let ((org-confirm-babel-evaluate nil))
-        (org-babel-tangle))))
-
-  (add-hook 'org-mode-hook
-            (lambda ()
-              (add-hook 'after-save-hook #'org-babel-tangle-config)))
+        (org-babel-tangle)))))
 
 (use-package emacs
   :init
