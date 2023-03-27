@@ -2,7 +2,8 @@
   :init
   (setq use-package-always-ensure t)
   (setq use-package-always-defer t)
-  (setq use-package-compute-statistics t))
+  (setq use-package-compute-statistics t)
+  (setq use-package-expand-minimally t))
 
 (use-package emacs
   :init
@@ -109,6 +110,117 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
         (google-search-str
          (buffer-substring-no-properties (region-beginning) (region-end)))
       (google-search-str (read-from-minibuffer "Search: "))))
+  )
+
+(use-package emacs
+  :init
+  (defcustom swl-llama-binary "~/git/alpaca.cpp/chat"
+    "Path to the llama.cpp compiled binary")
+
+  (defcustom swl-llama-model-path "~/git/alpaca.cpp/ggml-alpaca-7b-q4.bin"
+    "path to LLama-models")
+
+  (defcustom swl-llama-args '("-t" "9")
+    "Arguments to pass to lama")
+
+  (defvar swl-ggml-f16-file-name "ggml-model-f16.bin")
+  (defvar swl-ggml-quantized-file-name "ggml-model-q4_0.bin")
+
+  (defvar swl-model-sizes '("7B" "13B" "30B" "60B"))
+
+  (defvar swl-current-process-buffer nil "Mini-buffer currently being used to display the process.")
+
+  (defvar swl-query-hist nil)
+
+  (defvar-local swl-process-state nil "State of the swl buffer.")
+  (defvar-local swl-process-start-point nil "Point at which query starts.")
+  (defvar-local swl-process-cmd nil "Original query command running in the buffer.")
+
+  (defvar swl-result-mode-map
+    (let ((map (make-sparse-keymap)))
+      (suppress-keymap map)
+      (define-key map "q" 'swl-quit)
+      (define-key map "r" 'swl-restart-query)
+      map))
+
+  (defun swl-make-buffer-command (command &optional full)
+    "Return a string that invokes llama.cpp with a query COMMAND and model MODEL."
+    (format "%s -p \"%s\" --model %s %s"
+              swl-llama-binary
+              command
+              swl-llama-model-path
+              (string-join swl-llama-args " ")))
+
+  (defun swl-clear-running-process ()
+    (when (and swl-current-process-buffer (buffer-live-p swl-current-process-buffer))
+      (let  ((process (get-buffer-process swl-current-process-buffer)))
+        (if process (kill-process process)))
+      (with-current-buffer swl-current-process-buffer
+        (erase-buffer))))
+
+  (defun swl-quit ()
+    (interactive)
+    (swl-clear-running-process)
+    (when swl-current-process-buffer
+      (with-current-buffer swl-current-process-buffer
+        (setq swl-process-cmd nil)
+        (setq swl-process-state nil)))
+    (quit-window))
+
+  (defun swl-run-query (cmd)
+    (if swl-current-process-buffer
+        (swl-clear-running-process))
+    (with-current-buffer swl-current-process-buffer
+      (setq swl-process-state nil)
+      (setq swl-process-cmd cmd)
+      (goto-char 0)
+      (insert "CMD: ") (insert cmd) (insert "\n")
+      (insert "Press r to re-run query and q to quit.\n")
+      (goto-char (point-max))
+      (setq swl-process-start-point (make-marker))
+      (move-marker swl-process-start-point (point))
+      (use-local-map swl-result-mode-map))
+    (let (proc)
+      (setq proc (start-process-shell-command
+                  "swl-search-process"
+                  swl-current-process-buffer
+                  cmd))
+      (when (and proc (processp proc))
+        (set-process-filter proc #'swl-filter))))
+
+  (defun swl-restart-query ()
+    (interactive)
+    (swl-clear-running-process)
+    (when (and swl-current-process-buffer (buffer-live-p swl-current-process-buffer))
+      (with-current-buffer swl-current-process-buffer
+        (when swl-process-cmd
+          (swl-run-query swl-process-cmd)))))
+
+  (defun swl-filter (process event)
+    (when (and swl-current-process-buffer (buffer-live-p swl-current-process-buffer) (process-live-p process))
+      (with-current-buffer swl-current-process-buffer
+        (save-excursion
+          (goto-char (process-mark process))
+          (insert event)
+          (set-marker (process-mark process) (point))
+          (unless swl-process-state
+            (goto-char (point-min))
+            (setq swl-process-state
+                  (search-forward-regexp "sampling parameters:.*\n" nil t))
+            (if swl-process-state
+                (delete-region (marker-position swl-process-start-point) swl-process-state)))))))
+
+  (defun search-with-llama (query &optional model-size model-type)
+    (interactive
+     (list
+      (completing-read "" swl-query-hist nil nil nil 'swl-query-hist)))
+    (unless (and swl-current-process-buffer (buffer-live-p swl-current-process-buffer))
+      (setq swl-current-process-buffer (get-buffer-create "*swl-process-buffer*")))
+    (let (cmd)
+      (setq cmd (swl-make-buffer-command query))
+      (swl-run-query cmd)
+      (display-buffer-at-bottom swl-current-process-buffer '(previous-window))
+      (pop-to-buffer swl-current-process-buffer)))
   )
 
 (use-package no-littering
@@ -233,12 +345,14 @@ manual."
   (modify-all-frames-parameters
    '((right-divider-width . 10)
      (internal-border-width . 10)))
-  (dolist (face '(window-divider
-                  window-divider-first-pixel
-                  window-divider-last-pixel))
-    (face-spec-reset-face face)
-    (set-face-foreground face (face-attribute 'default :background)))
-  (set-face-background 'fringe (face-attribute 'default :background))
+  (defun lc/hide-divider-and-fringe ()
+    (dolist (face '(window-divider
+                    window-divider-first-pixel
+                    window-divider-last-pixel))
+      (face-spec-reset-face face)
+      (set-face-foreground face (face-attribute 'default :background)))
+    (set-face-background 'fringe (face-attribute 'default :background)))
+  (add-hook 'modus-themes-after-load-theme-hook '(lc/hide-divider-and-fringe))
   )
 
 (use-package emacs
@@ -300,10 +414,16 @@ manual."
   ("<leader>rr" . 'consult-bookmark)
   ("<leader>so" . 'consult-outline)
   ("<leader>ss" . 'consult-line)
+  ("<leader>sS" . 'lc/search-symbol-at-point)
   ("<leader>sp" . 'consult-ripgrep)
   ("C-p" . 'consult-yank-pop)
   ("<insert-state>C-p" . 'consult-yank-pop)
   ("M-p" . 'consult-toggle-preview)
+  :preface
+  (defun lc/search-symbol-at-point ()
+    "Performs a search in the current buffer for thing at point."
+    (interactive)
+    (consult-line (thing-at-point 'symbol)))
   :config
   (consult-customize
    consult-ripgrep consult-git-grep consult-grep
@@ -373,8 +493,6 @@ manual."
 (use-package denote-menu
   :commands
   (list-denotes)
-  :after
-  (denote)
   :bind
   ("<leader>nm" . (lambda () (interactive)
                     (tabspaces-switch-or-create-workspace "denote") (list-denotes)))
@@ -436,17 +554,10 @@ manual."
 
 (use-package eros
   :commands
-  (eros-eval-last-sexp eros-eval-region)
+  (eros-eval-region)
   :hook
-  ((emacs-lisp-mode org-mode lisp-interaction-mode) . eros-mode)
-  :bind
-  (:map emacs-lisp-mode-map
-        ("<localleader>el" . 'eros-eval-last-sexp)
-        ("<visual-state> <localleader>e" . 'eros-eval-region))
-  (:map lisp-interaction-mode-map
-        ("<localleader>el" . 'eros-eval-last-sexp)
-        ("<visual-state> <localleader>e" . 'eros-eval-region))
-  :init
+  (emacs-lisp-mode org-mode lisp-interaction-mode)
+  :preface
   (defun eros-eval-region (start end)
     (interactive "r")
     (eros--eval-overlay
@@ -459,6 +570,7 @@ manual."
 (use-package evil
   :custom
   (evil-want-C-u-scroll t)
+  (evil-want-C-i-jump t)
   (evil-lookup-func #'helpful-at-point)
   (evil-want-Y-yank-to-eol t)
   (evil-split-window-below t)
@@ -486,6 +598,7 @@ manual."
   :config
   (defcustom evil-extra-operator-eval-modes-alist
     '((emacs-lisp-mode eros-eval-region)
+      (org-mode eros-eval-region)
       ;; (scheme-mode geiser-eval-region)
       (clojure-mode cider-eval-region)
       ;; (jupyter-repl-interaction-mode jupyter-eval-line-or-region)
@@ -500,23 +613,24 @@ with at least 2 arguments: the region beginning and the region end. ARGS will
 be passed to EVAL-FUNC as its rest arguments"
     :type '(alist :key-type symbol)
     :group 'evil-extra-operator)
-
-  (with-eval-after-load 'org
-    (evil-define-operator evil-operator-eval (beg end)
-      "Evil operator for evaluating code."
-      :move-point nil
-      (interactive "<r>")
-      (let* ((mode (if (org-in-src-block-p) (intern (car (org-babel-get-src-block-info))) major-mode))
-             (ele (assoc mode evil-extra-operator-eval-modes-alist))
-             (f-a (cdr-safe ele))
-             (func (car-safe f-a))
-             (args (cdr-safe f-a)))
-        (if (fboundp func)
-            (apply func beg end args)
-          (eval-region beg end t))))
-    (define-key emacs-lisp-mode-map (kbd "<normal-state> gr") nil)
-    (define-key evil-motion-state-map "gr" 'evil-operator-eval)
-    ))
+  (evil-define-operator evil-operator-eval (beg end)
+    "Evil operator for evaluating code."
+    :move-point nil
+    (interactive "<r>")
+    (let* (;; (mode (if (and (eq major-mode 'org-mode) (org-in-src-block-p))
+           ;;           (intern (car (org-babel-get-src-block-info)))
+           ;;         major-mode))
+           (mode major-mode)
+           (ele (assoc mode evil-extra-operator-eval-modes-alist))
+           (f-a (cdr-safe ele))
+           (func (car-safe f-a))
+           (args (cdr-safe f-a)))
+      (if (fboundp func)
+          (save-mark-and-excursion (apply func beg end args))
+        (eval-region beg end t))))
+  (define-key emacs-lisp-mode-map (kbd "<normal-state> gr") nil)
+  (define-key evil-motion-state-map "gr" 'evil-operator-eval)
+  )
 
 (use-package evil-nerd-commenter
   :bind
@@ -528,9 +642,8 @@ be passed to EVAL-FUNC as its rest arguments"
         ("gC" . 'evilnc-copy-and-comment-operator)))
 
 (use-package evil-surround
-  :after evil
-  :config
-  (global-evil-surround-mode 1))
+  :hook
+  (evil-mode . global-evil-surround-mode))
 
 (use-package evil-goggles
   :after evil
@@ -703,16 +816,20 @@ be passed to EVAL-FUNC as its rest arguments"
   (when (treesit-ready-p 'python)
     (add-to-list 'major-mode-remap-alist '(python-mode . python-ts-mode))))
 
+(use-package treemacs
+  :bind
+  ("<leader>tp" . 'treemacs))
+
 (use-package savehist
   :ensure nil
   :init
   (savehist-mode))
 
 (use-package vertico
-  :hook
-  (minibuffer-setup . 'vertico-repeat-save)
+  ;; :hook
+  ;; (minibuffer-setup . 'vertico-repeat-save)
   :bind
-  ("<leader>." . 'vertico-repeat)
+  ;; ("<leader>." . 'vertico-repeat)
   (:map vertico-map
         ("C-k" . 'vertico-next)
         ("C-j" . 'vertico-previous))
@@ -751,6 +868,29 @@ be passed to EVAL-FUNC as its rest arguments"
   (xwwp-follow-link-completion-system 'default)
   :config
   (require 'cl)
+  )
+
+(use-package chatgpt-shell
+  :vc (:fetcher "github" :repo "xenodium/chatgpt-shell")
+  :bind
+  ("<leader>sG" . 'chatgpt-shell)
+  :demand
+  :init
+  (setq chatgpt-shell-openai-key (auth-source-pick-first-password :host "chat.openai.com"))
+  )
+
+(use-package codegpt
+  :vc (:fetcher "github" :repo "emacs-openai/codegpt")
+  :bind
+  (:map evil-visual-state-map
+        ("s-1" . 'codegpt))
+  :config
+  (use-package openai
+    :vc (:fetcher "github" :repo "emacs-openai/openai")
+    :demand t
+    :init
+    (setq openai-key (auth-source-pick-first-password :host "chat.openai.com"))
+    )
   )
 
 (use-package magit
@@ -906,10 +1046,6 @@ be passed to EVAL-FUNC as its rest arguments"
   (plist-put org-format-latex-options :scale 1.2)
   ;; Only fold the current tree, rather than recursively
   (add-hook 'org-tab-first-hook #'+org-cycle-only-current-subtree-h)
-  ;; FIXME
-  (with-eval-after-load 'evil
-    (evil-define-key 'visual 'org-mode-map
-      (kbd "<localleader>e") 'eros-eval-region))
   )
 
 (use-package org
@@ -979,13 +1115,13 @@ be passed to EVAL-FUNC as its rest arguments"
 
 (use-package org
   :bind
-  ((:map org-mode-map
-         ("<localleader>'" . 'org-edit-special)
-         ("<localleader>-" . 'org-babel-demarcate-block)
-         ("<localleader>z" . 'org-babel-hide-result-toggle))
-   (:map org-src-mode-map
-         ;;FIXME
-         ("<localleader>'" . 'org-edit-src-exit)))
+  (:map org-mode-map
+        ("<localleader>'" . 'org-edit-special)
+        ("<localleader>-" . 'org-babel-demarcate-block)
+        ("<localleader>z" . 'org-babel-hide-result-toggle))
+  (:map org-src-mode-map
+        ;;FIXME
+        ("<localleader>'" . 'org-edit-src-exit))
   :custom
   (org-confirm-babel-evaluate nil)
   :config
