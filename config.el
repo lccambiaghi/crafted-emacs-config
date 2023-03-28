@@ -8,7 +8,7 @@
 (use-package emacs
   :init
   (defvar user-config-directory crafted-config-path)
-  (defvar lc/use-xwwp nil)
+  (defvar lc/use-xwidget-browser t)
   ;; fix void-variable in some packages e.g. helpful
   (defvar read-symbol-positions-list nil))
 
@@ -80,37 +80,64 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
 
 (use-package emacs
   :bind
+  ("<leader>sw" . (lambda () (interactive)
+                    (tabspaces-switch-or-create-workspace "web")
+                    (lc/open-url "google.com")))
+  :init
+  (setq lc/xwidget-webkit-last-session-buffer nil)
+  (defun lc/open-url-other-window (url &optional new-session)
+    (let ((orig-last-session-buffer (if (boundp 'xwidget-webkit-last-session-buffer)
+                                        xwidget-webkit-last-session-buffer
+                                      nil)))
+      (setq xwidget-webkit-last-session-buffer lc/xwidget-webkit-last-session-buffer)
+      (save-window-excursion
+        (xwidget-webkit-browse-url url new-session))
+      (pop-to-buffer xwidget-webkit-last-session-buffer)
+      (setq lc/xwidget-webkit-last-session-buffer xwidget-webkit-last-session-buffer)
+      (setq xwidget-webkit-last-session-buffer orig-last-session-buffer)))
+  (defun lc/open-url (url &optional other-window new-session)
+    (interactive
+     (list
+      (read-string  "Enter URL or keywords: " nil 'eww-prompt-history "")))
+    (if other-window
+        (lc/open-url-other-window url new-session)
+      (xwidget-webkit-browse-url url new-session))))
+
+(use-package emacs
+  :bind
   ("<leader>sc" . 'github-code-search)
   :init
   (defun github-code-search ()
     "Search code on github for a given language."
     (interactive)
     (let* ((language (completing-read
-                     "Language: "
-                     '("Emacs Lisp" "Python"  "Clojure" "R")))
-          (code (read-string "Code: "))
-          (url (concat "https://github.com/search?l=" language "&type=code&q=" code)))
-      (if lc/use-xwwp
-          (let ((current-prefix-arg 4)) (xwwp url))
-          ;; (progn (evil-window-vsplit) (xwwp-browse-url-other-window url t))
-          (browse-url url))))
-  )
+                      "Language: "
+                      '("Emacs+Lisp" "Python"  "Clojure" "R")))
+           (code
+            (thread-last
+              (read-string "Code: ") (replace-regexp-in-string " " "+")))
+           (url (concat "https://github.com/search?l=" language "&type=code&q=" code)))
+      (if lc/use-xwidget-browser
+          (lc/open-url-other-window url)
+        (browse-url url)))))
 
 (use-package emacs
   :bind
   ("<leader>sg" . 'google-search)
   :init
   (defun google-search-str (str)
-    (browse-url
-     (concat "https://www.google.com/search?q=" str)))
+    (let* ((keywords (replace-regexp-in-string " " "+" str))
+          (url (concat "https://www.google.com/search?q=" keywords)))
+      (if lc/use-xwidget-browser
+          (lc/open-url-other-window url)
+        (browse-url url))))
   (defun google-search ()
     "Google search region, if active, or ask for search string."
     (interactive)
     (if (region-active-p)
         (google-search-str
          (buffer-substring-no-properties (region-beginning) (region-end)))
-      (google-search-str (read-from-minibuffer "Search: "))))
-  )
+      (google-search-str (read-from-minibuffer "Search: ")))))
 
 (use-package emacs
   :init
@@ -318,14 +345,15 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
 
   (lc/override-colors)
 
-  ;; Load the theme of your choice.
-  (progn
-    (disable-theme 'deeper-blue)          ; first turn off the deeper-blue theme
-    ;; light theme
-    (load-theme 'modus-operandi :no-confim)
+  ;; first turn off the deeper-blue theme
+  (disable-theme 'deeper-blue)
+  ;; poor man's way of checking the hour when emacs is started
+  (if (< (string-to-number (format-time-string "%H")) ;; >
+         19)
+      ;; light theme
+      (load-theme 'modus-operandi :no-confim)
     ;; dark theme
-    ;; (load-theme 'modus-vivendi :no-confim)
-    )
+    (load-theme 'modus-vivendi :no-confim))
 
   (defun lc/modus-themes-toggle ()
     "Toggle between `modus-operandi' and `modus-vivendi' themes.
@@ -352,8 +380,11 @@ manual."
       (face-spec-reset-face face)
       (set-face-foreground face (face-attribute 'default :background)))
     (set-face-background 'fringe (face-attribute 'default :background)))
-  (add-hook 'modus-themes-after-load-theme-hook '(lc/hide-divider-and-fringe))
-  )
+  ;; call it once at init time
+  (lc/hide-divider-and-fringe)
+  ;; call it every time the theme changes
+  (advice-add 'lc/modus-themes-toggle
+              :after (lambda () (interactive) (lc/hide-divider-and-fringe))))
 
 (use-package emacs
   :init
@@ -416,6 +447,7 @@ manual."
   ("<leader>ss" . 'consult-line)
   ("<leader>sS" . 'lc/search-symbol-at-point)
   ("<leader>sp" . 'consult-ripgrep)
+  ("<leader>sd" . 'lc/consult-ripgrep-at-point)
   ("C-p" . 'consult-yank-pop)
   ("<insert-state>C-p" . 'consult-yank-pop)
   ("M-p" . 'consult-toggle-preview)
@@ -424,6 +456,13 @@ manual."
     "Performs a search in the current buffer for thing at point."
     (interactive)
     (consult-line (thing-at-point 'symbol)))
+  (defun lc/consult-ripgrep-at-point (&optional dir initial)
+    (interactive
+     (list
+      (read-directory-name "Directory:")
+      (when-let ((s (symbol-at-point)))
+        (symbol-name s))))
+    (consult-ripgrep dir initial))
   :config
   (consult-customize
    consult-ripgrep consult-git-grep consult-grep
@@ -554,7 +593,7 @@ manual."
 
 (use-package eros
   :commands
-  (eros-eval-region)
+  (eros-eval-region eros-eval-last-sexp)
   :hook
   (emacs-lisp-mode org-mode lisp-interaction-mode)
   :preface
@@ -582,6 +621,9 @@ manual."
   (evil-set-leader 'visual (kbd "SPC"))
   ;; set local leader
   (evil-set-leader 'normal "," t)
+  (evil-set-leader 'visual "," t)
+  ;; ESC key
+  (define-key evil-insert-state-map (kbd "ESC") 'evil-normal-state)
   ;; set up motion keys
   (define-key evil-motion-state-map "_" 'evil-end-of-line)
   (define-key evil-motion-state-map "0" 'evil-beginning-of-line)
@@ -642,8 +684,9 @@ be passed to EVAL-FUNC as its rest arguments"
         ("gC" . 'evilnc-copy-and-comment-operator)))
 
 (use-package evil-surround
-  :hook
-  (evil-mode . global-evil-surround-mode))
+  :init
+  (with-eval-after-load 'evil
+    (global-evil-surround-mode)))
 
 (use-package evil-goggles
   :after evil
@@ -682,6 +725,11 @@ be passed to EVAL-FUNC as its rest arguments"
     (define-key evil-outer-text-objects-map "f" #'evil-cp-a-defun)
     (define-key evil-inner-text-objects-map "f" #'evil-cp-inner-defun)
     ))
+
+(use-package evil-iedit-state
+  :vc (:fetcher github :repo "kassick/evil-iedit-state")
+  :bind
+  ("<leader>se" . 'iedit-mode))
 
   (use-package flymake
     :ensure nil
@@ -855,15 +903,12 @@ be passed to EVAL-FUNC as its rest arguments"
   (vterm-toggle-scope 'project))
 
 (use-package xwwp-full
-  :vc (:fetcher "github" :repo "kchanqvq/xwwp")
-  :commands
-  (xwwp xwwp-browse-url-other-window)
-  :bind
-  ("<leader>xx" .  (lambda () (interactive)
-                     (let ((current-prefix-arg 4)) ;; emulate C-u universal arg
-                       (call-interactively 'xwwp))))
-  ("<leader>xl" .  'xwwp-follow-link)
-  ("<leader>xb" .  'xwidget-webkit-back)
+  :vc
+  ;; this fork adds `xwwp-ace-toggle` and sections
+  (:fetcher "github" :repo "kchanqvq/xwwp")
+  (:map xwidget-webkit-mode-map
+        ("<localleader>b" .  'xwidget-webkit-back)
+        ("<localleader>j" .  'xwwp-ace-toggle))
   :custom
   (xwwp-follow-link-completion-system 'default)
   :config
@@ -873,25 +918,85 @@ be passed to EVAL-FUNC as its rest arguments"
 (use-package chatgpt-shell
   :vc (:fetcher "github" :repo "xenodium/chatgpt-shell")
   :bind
-  ("<leader>sG" . 'chatgpt-shell)
-  :demand
+  ("<leader>[c" . 'chatgpt-shell)
+  ("<leader>[d" . 'dall-e-shell)
   :init
   (setq chatgpt-shell-openai-key (auth-source-pick-first-password :host "chat.openai.com"))
   )
 
 (use-package codegpt
   :vc (:fetcher "github" :repo "emacs-openai/codegpt")
+  :commands (lc/insert-completion-after-region)
   :bind
+  ("s-b" . 'lc/insert-completion-after-buffer)
   (:map evil-visual-state-map
-        ("s-1" . 'codegpt))
+        ("s-1" . 'codegpt)
+        ("s-2" . (lambda (start end) (interactive "r")
+                   (let ((codegpt-tunnel 'chat)
+                         (codegpt-model "gpt-3.5-turbo"))
+                     (codegpt start end))))
+        ("s-r" . 'lc/insert-completion-after-region))
+  (:map codegpt-mode-map
+        ("q" . 'kill-current-buffer))
+  :custom
+  (codegpt-model 'text-davinci-003)
+  (codegpt-temperature 0.1)
+  :init
+  (setq lc/action-alist '(("complete" . "Complete the following code. \n")))
+  :preface
+  (defun lc/insert-completion-after-region (start end)
+    (interactive "r")
+    (require 'openai)
+    (require 'codegpt)
+    (let* ((offset (openai--completing-frame-offset lc/action-alist))
+           (action
+            (completing-read
+             "Select completion action: "
+             (lambda (string predicate action)
+               (if (eq action 'metadata)
+                   `(metadata
+                     (display-sort-function . ,#'identity)
+                     (annotation-function
+                      . ,(lambda (cand)
+                           (concat (propertize " " 'display `((space :align-to (- right ,offset))))
+                                   (cdr (assoc cand lc/action-alist))))))
+                 (complete-with-action action lc/action-alist string predicate)))
+             nil t))
+           (instruction (cdr (assoc action lc/action-alist))))
+      (lc/codegpt--internal
+       instruction
+       start end)))
+  (defun lc/insert-completion-after-buffer ()
+    (interactive)
+    (lc/codegpt--internal
+     "Complete the following code."
+     (point-min) (point-max)))
+  (defun lc/codegpt--internal (instruction start end)
+    "Do INSTRUCTION with partial code."
+    (setq codegpt-requesting-p t)
+    (let* ((text (string-trim (buffer-substring start end)))
+           (prompt (concat instruction "\n" text)))
+      (openai-completion
+       ;; prompt
+       prompt
+       ;; callback
+       (lambda (data)
+         (setq codegpt-requesting-p nil)
+         (let* ((choices (openai--data-choices data))
+                (result (openai--get-choice choices))
+                (result (string-trim result))
+                (result (codegpt--render-markdown result)))
+           (insert "\n" result "\n")))
+       ;; kwargs
+       :model codegpt-model
+       :max-tokens codegpt-max-tokens
+       :temperature codegpt-temperature)))
   :config
   (use-package openai
     :vc (:fetcher "github" :repo "emacs-openai/openai")
     :demand t
     :init
-    (setq openai-key (auth-source-pick-first-password :host "chat.openai.com"))
-    )
-  )
+    (setq openai-key (auth-source-pick-first-password :host "chat.openai.com"))))
 
 (use-package magit
   :bind
@@ -1001,14 +1106,15 @@ be passed to EVAL-FUNC as its rest arguments"
   (:map org-mode-map
         ("<localleader>a" . 'org-archive-subtree)
         ("<localleader>i" . 'org-insert-structure-template)
-        ("<localleader>ll" . 'org-insert-link)
-        ("<localleader>ls" . 'org-store-link)
+        ("<visual-state><localleader>l" . 'org-insert-link)
+        ("<normal-state><localleader>ll" . 'org-insert-link)
+        ("<normal-state><localleader>ls" . 'org-store-link)
         ("<localleader>L" . (lambda () (interactive) (org-latex-preview)))
         ("<localleader>n" . 'org-toggle-narrow-to-subtree)
         ("<localleader>r" . 'org-refile)
         ("<localleader>x" . 'org-toggle-checkbox)
-        ;; eros
-        ("<localleader>el" . 'eros-eval-last-sexp))
+        ("<normal-state><localleader>el" . 'eros-eval-last-sexp)
+        ("<visual-state><localleader>e" . 'eros-eval-last-sexp))
   :custom
   (org-src-preserve-indentation t)
   (org-src-tab-acts-natively t)
@@ -1429,8 +1535,9 @@ be passed to EVAL-FUNC as its rest arguments"
         ("<localleader>di" . 'lc/dap-inspect-df)
         ;; templates
         ("<localleader>dt" . (lambda () (interactive) (dap-debug dap-test-args)))
-        ("<localleader>ds" . (lambda () (interactive) (dap-debug dap-script-args)))
-        )
+        ("<localleader>ds" . (lambda () (interactive) (dap-debug dap-script-args))))
+  (:map dap-ui-repl-mode-map
+        ("<insert-state><up>" . 'comint-previous-input))
   :init
   (setq lc/dap-temp-dataframe-buffer  "*inspect-df*")
   (setq lc/dap-temp-dataframe-path "~/tmp-inspect-df.csv")
@@ -1484,9 +1591,7 @@ be passed to EVAL-FUNC as its rest arguments"
     (save-window-excursion
       ;; switch to main window
       (winum-select-window-1)
-      (lc/window-resize-to-percentage 0.66)
-      )
-    )
+      (lc/window-resize-to-percentage 0.66)))
   (defun lc/switch-to-output-buf ()
     (when
         (string-equal
@@ -1541,10 +1646,6 @@ be passed to EVAL-FUNC as its rest arguments"
   (dap-register-debug-template "dap-debug-script" dap-script-args)
   (dap-register-debug-template "dap-debug-test-at-point" dap-test-args)
   (dap-register-debug-template "eco-cold-start" eco-cold-start)
-
-  (with-eval-after-load 'evil
-    (evil-define-key 'insert 'dap-ui-repl-mode-map
-      (kbd "<up>") 'comint-previous-input))
   )
 
 (use-package flymake-ruff
@@ -1554,10 +1655,9 @@ be passed to EVAL-FUNC as its rest arguments"
 (use-package jupyter
   :vc (:fetcher "github" :repo "nnicandro/emacs-jupyter")
   :bind
-  ;; jupyter-org-interaction-mode-map
   (:map python-base-mode-map
         ("<localleader>ee" . 'jupyter-eval-line-or-region)
-        ;; ("<visual-state><localleader>e" . 'jupyter-eval-line-or-region)
+        ("<visual-state><localleader>e" . 'jupyter-eval-line-or-region)
         ("<localleader>ed" . 'jupyter-eval-defun)
         ("<localleader>eb" . 'jupyter-eval-buffer)
         ;; ("<localleader>eb" . (lambda () (interactive) (lc/jupyter-eval-buffer)))
@@ -1565,7 +1665,8 @@ be passed to EVAL-FUNC as its rest arguments"
         ("<localleader>kd" . 'lc/kill-repl-kernel)
         ("<localleader>ki" . 'jupyter-org-interrupt-kernel)
         ("<localleader>kr" . 'jupyter-repl-restart-kernel)
-        ("<localleader>J" . 'lc/jupyter-repl))
+        ;; ("<localleader>J" . 'lc/jupyter-repl)
+        )
   :custom
   (jupyter-repl-prompt-margin-width 4)
   (jupyter-eval-use-overlays nil)
@@ -1615,12 +1716,7 @@ be passed to EVAL-FUNC as its rest arguments"
                        '((allow-no-window . t)))))
   (with-eval-after-load 'treesit
     (evil-define-key 'normal 'python-ts-mode-map
-      (kbd "<localleader>J") 'lc/jupyter-repl)
-    (evil-define-key 'visual 'python-ts-mode-map
-      (kbd "<localleader>e") 'jupyter-eval-line-or-region)))
-
-;; (use-package emacs-zmq
-;;   :vc (:fetcher "github" :repo "nnicandro/emacs-zmq"))
+      (kbd "<localleader>J") 'lc/jupyter-repl)))
 
 (use-package jupyter
   :vc (:fetcher "github" :repo "nnicandro/emacs-jupyter")
