@@ -726,6 +726,26 @@ be passed to EVAL-FUNC as its rest arguments"
     (define-key evil-inner-text-objects-map "f" #'evil-cp-inner-defun)
     ))
 
+(use-package evil
+  :config
+  (defgroup evil-textobj-entire nil
+    "Text object entire buffer for Evil"
+    :prefix "evil-textobj-entire-"
+    :group 'evil)
+
+  (defcustom evil-textobj-entire-key "g"
+    "Key for evil-inner-entire"
+    :type 'string
+    :group 'evil-textobj-entire)
+
+  (evil-define-text-object evil-entire-entire-buffer (count &optional beg end type)
+    "Select entire buffer"
+    (evil-range (point-min) (point-max)))
+
+  (define-key evil-outer-text-objects-map evil-textobj-entire-key 'evil-entire-entire-buffer)
+  (define-key evil-inner-text-objects-map evil-textobj-entire-key 'evil-entire-entire-buffer)
+  )
+
 (use-package evil-iedit-state
   :vc (:fetcher github :repo "kassick/evil-iedit-state")
   :bind
@@ -903,17 +923,16 @@ be passed to EVAL-FUNC as its rest arguments"
   (vterm-toggle-scope 'project))
 
 (use-package xwwp-full
-  :vc
-  ;; this fork adds `xwwp-ace-toggle` and sections
-  (:fetcher "github" :repo "kchanqvq/xwwp")
+  :vc (:fetcher "github" :repo "kchanqvq/xwwp")
   (:map xwidget-webkit-mode-map
         ("<localleader>b" .  'xwidget-webkit-back)
-        ("<localleader>j" .  'xwwp-ace-toggle))
+        ("<localleader>j" .  'xwwp-ace-toggle)
+        ("<localleader>o" .  'xwwp-section)
+        ("<localleader>h" .  'xwwp-history-show))
   :custom
   (xwwp-follow-link-completion-system 'default)
   :config
-  (require 'cl)
-  )
+  (require 'cl))
 
 (use-package chatgpt-shell
   :vc (:fetcher "github" :repo "xenodium/chatgpt-shell")
@@ -1114,7 +1133,9 @@ be passed to EVAL-FUNC as its rest arguments"
         ("<localleader>r" . 'org-refile)
         ("<localleader>x" . 'org-toggle-checkbox)
         ("<normal-state><localleader>el" . 'eros-eval-last-sexp)
-        ("<visual-state><localleader>e" . 'eros-eval-last-sexp))
+        ("<visual-state><localleader>e" . 'eros-eval-last-sexp)
+        ("<localleader>E" . 'org-export-dispatch)
+        )
   :custom
   (org-src-preserve-indentation t)
   (org-src-tab-acts-natively t)
@@ -1364,6 +1385,21 @@ be passed to EVAL-FUNC as its rest arguments"
 (use-package org-modern
   :hook
   (org-mode . org-modern-mode))
+
+(use-package org-html-themify
+  :vc (:fetcher "github" :repo "DogLooksGood/org-html-themify")
+  :hook (org-mode . org-html-themify-mode)
+  :config
+  (use-package hexrgb
+    :vc (:fetcher "github" :repo "emacsmirror/hexrgb")
+    :demand t)
+  ;; otherwise it complains about invalid face
+  (require 'hl-line)
+  (setq org-html-themify-themes
+        '((light . modus-operandi)
+          (dark . modus-operandi)))
+  (setq org-export-backends '(html))
+  )
 
 (use-package lsp-mode
   :commands
