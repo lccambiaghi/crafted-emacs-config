@@ -17,7 +17,9 @@ Approach:
   - Great configuration of essential external packages e.g. =corfu=, =vertico=, ...
 - Cherry-pick the essential parts of my "big" vanilla config
 - Use more of the built-in packages, ~emacs29~ comes with a lot of cool
-  stuff (=use-package=, =tree-sitter=, =modus-themes=). I tried to set up =eglot= but
+  stuff (=use-package=, =tree-sitter=, =modus-themes=), plus I can try
+  leverage more of the features introduced with emacs 27 and 28
+  (=project=, =tab-bar=, =flymake=). I tried to set up =eglot= but
   I really need =dap-mode=.
 
 ** Structure
@@ -63,7 +65,7 @@ installing the packages on the first setup.
   (setq use-package-expand-minimally t))
 #+end_src
 
-** Variables
+** User variables
 
 #+begin_src emacs-lisp
 (use-package emacs
@@ -74,8 +76,7 @@ installing the packages on the first setup.
   (defvar read-symbol-positions-list nil))
 #+end_src
 
-** Helpers
-*** Helper for tangling
+** Helper for tangling
 
 #+begin_src emacs-lisp
 (use-package emacs
@@ -91,7 +92,7 @@ installing the packages on the first setup.
         (org-babel-tangle)))))
 #+end_src
 
-*** Fix helpful
+** Fix helpful
 
 #+begin_src emacs-lisp
 (use-package helpful
@@ -107,7 +108,7 @@ installing the packages on the first setup.
         (error (help-fns--autoloaded-p sym))))))
 #+end_src
 
-*** Enlarge window
+** Enlarge window
 
 #+begin_src emacs-lisp
 (use-package emacs
@@ -153,7 +154,7 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
   )
 #+end_src
 
-*** open url in xwidget browser
+** Web browser in emacs
 
 Note:
 - Sometimes after browsing the web and returning to a buffer
@@ -168,6 +169,7 @@ Note:
   ("<leader>sw" . (lambda () (interactive)
                     (tabspaces-switch-or-create-workspace "web")
                     (lc/open-url "google.com")))
+  ("<leader>su" . (lambda () (interactive) (call-interactively 'lc/open-url)))
   :init
   (setq lc/xwidget-webkit-last-session-buffer nil)
   (defun lc/open-url-other-window (url &optional new-session)
@@ -189,7 +191,7 @@ Note:
       (xwidget-webkit-browse-url url new-session))))
 #+end_src
 
-*** Search code on github
+** Search code on github
 
 #+begin_src emacs-lisp
 (use-package emacs
@@ -211,7 +213,7 @@ Note:
         (browse-url url)))))
 #+end_src
 
-*** Search on google
+** Search on google
 
 #+begin_src emacs-lisp
 (use-package emacs
@@ -231,121 +233,6 @@ Note:
         (google-search-str
          (buffer-substring-no-properties (region-beginning) (region-end)))
       (google-search-str (read-from-minibuffer "Search: ")))))
-#+end_src
-
-*** Search with alpaca
-
-#+begin_src emacs-lisp
-(use-package emacs
-  :init
-  (defcustom swl-llama-binary "~/git/alpaca.cpp/chat"
-    "Path to the llama.cpp compiled binary")
-
-  (defcustom swl-llama-model-path "~/git/alpaca.cpp/ggml-alpaca-7b-q4.bin"
-    "path to LLama-models")
-
-  (defcustom swl-llama-args '("-t" "9")
-    "Arguments to pass to lama")
-
-  (defvar swl-ggml-f16-file-name "ggml-model-f16.bin")
-  (defvar swl-ggml-quantized-file-name "ggml-model-q4_0.bin")
-
-  (defvar swl-model-sizes '("7B" "13B" "30B" "60B"))
-
-  (defvar swl-current-process-buffer nil "Mini-buffer currently being used to display the process.")
-
-  (defvar swl-query-hist nil)
-
-  (defvar-local swl-process-state nil "State of the swl buffer.")
-  (defvar-local swl-process-start-point nil "Point at which query starts.")
-  (defvar-local swl-process-cmd nil "Original query command running in the buffer.")
-
-  (defvar swl-result-mode-map
-    (let ((map (make-sparse-keymap)))
-      (suppress-keymap map)
-      (define-key map "q" 'swl-quit)
-      (define-key map "r" 'swl-restart-query)
-      map))
-
-  (defun swl-make-buffer-command (command &optional full)
-    "Return a string that invokes llama.cpp with a query COMMAND and model MODEL."
-    (format "%s -p \"%s\" --model %s %s"
-              swl-llama-binary
-              command
-              swl-llama-model-path
-              (string-join swl-llama-args " ")))
-
-  (defun swl-clear-running-process ()
-    (when (and swl-current-process-buffer (buffer-live-p swl-current-process-buffer))
-      (let  ((process (get-buffer-process swl-current-process-buffer)))
-        (if process (kill-process process)))
-      (with-current-buffer swl-current-process-buffer
-        (erase-buffer))))
-
-  (defun swl-quit ()
-    (interactive)
-    (swl-clear-running-process)
-    (when swl-current-process-buffer
-      (with-current-buffer swl-current-process-buffer
-        (setq swl-process-cmd nil)
-        (setq swl-process-state nil)))
-    (quit-window))
-
-  (defun swl-run-query (cmd)
-    (if swl-current-process-buffer
-        (swl-clear-running-process))
-    (with-current-buffer swl-current-process-buffer
-      (setq swl-process-state nil)
-      (setq swl-process-cmd cmd)
-      (goto-char 0)
-      (insert "CMD: ") (insert cmd) (insert "\n")
-      (insert "Press r to re-run query and q to quit.\n")
-      (goto-char (point-max))
-      (setq swl-process-start-point (make-marker))
-      (move-marker swl-process-start-point (point))
-      (use-local-map swl-result-mode-map))
-    (let (proc)
-      (setq proc (start-process-shell-command
-                  "swl-search-process"
-                  swl-current-process-buffer
-                  cmd))
-      (when (and proc (processp proc))
-        (set-process-filter proc #'swl-filter))))
-
-  (defun swl-restart-query ()
-    (interactive)
-    (swl-clear-running-process)
-    (when (and swl-current-process-buffer (buffer-live-p swl-current-process-buffer))
-      (with-current-buffer swl-current-process-buffer
-        (when swl-process-cmd
-          (swl-run-query swl-process-cmd)))))
-
-  (defun swl-filter (process event)
-    (when (and swl-current-process-buffer (buffer-live-p swl-current-process-buffer) (process-live-p process))
-      (with-current-buffer swl-current-process-buffer
-        (save-excursion
-          (goto-char (process-mark process))
-          (insert event)
-          (set-marker (process-mark process) (point))
-          (unless swl-process-state
-            (goto-char (point-min))
-            (setq swl-process-state
-                  (search-forward-regexp "sampling parameters:.*\n" nil t))
-            (if swl-process-state
-                (delete-region (marker-position swl-process-start-point) swl-process-state)))))))
-
-  (defun search-with-llama (query &optional model-size model-type)
-    (interactive
-     (list
-      (completing-read "" swl-query-hist nil nil nil 'swl-query-hist)))
-    (unless (and swl-current-process-buffer (buffer-live-p swl-current-process-buffer))
-      (setq swl-current-process-buffer (get-buffer-create "*swl-process-buffer*")))
-    (let (cmd)
-      (setq cmd (swl-make-buffer-command query))
-      (swl-run-query cmd)
-      (display-buffer-at-bottom swl-current-process-buffer '(previous-window))
-      (pop-to-buffer swl-current-process-buffer)))
-  )
 #+end_src
 
 ** no-littering
@@ -752,19 +639,21 @@ manual."
   :bind
   ("<leader>fd" . 'dired)
   ("<leader>fj" . 'dired-jump)
-  (:map dired-mode-map
-        ;; open in finder
-        ("F" . (lambda () (interactive)
-                 (let ((fn (dired-get-file-for-visit)))
-                   (start-process "open-directory" nil "open" "-R" fn)))))
   :hook
   (dired-mode . dired-hide-details-mode)
   :custom
   (dired-listing-switches "-lah")
   (dired-kill-when-opening-new-dired-buffer t)
   (dired-dwim-target t)
+  :init
+  (defun lc/open-in-finder ()
+    (interactive)
+    (let ((fn (dired-get-file-for-visit)))
+      (start-process "open-directory" nil "open" "-R" fn)))
   :config
   (define-key dired-mode-map (kbd "<normal-state>i") nil)
+  (evil-collection-define-key 'normal 'dired-mode-map
+    "F" 'lc/open-in-finder)
   )
 
 (use-package dired-hide-dotfiles
@@ -967,6 +856,7 @@ be passed to EVAL-FUNC as its rest arguments"
     (define-key evil-inner-text-objects-map "f" #'evil-cp-inner-defun)
     ))
 #+end_src
+
 *** evil buffer text object
 
 #+begin_src emacs-lisp
@@ -1243,6 +1133,7 @@ To build grammar:
 #+begin_src emacs-lisp
 (use-package xwwp-full
   :vc (:fetcher "github" :repo "kchanqvq/xwwp")
+  :bind
   (:map xwidget-webkit-mode-map
         ("<localleader>b" .  'xwidget-webkit-back)
         ("<localleader>j" .  'xwwp-ace-toggle)
@@ -1254,24 +1145,8 @@ To build grammar:
   (require 'cl))
 #+end_src
 
-** chatgpt-shell
-
-#+begin_src emacs-lisp
-(use-package chatgpt-shell
-  :vc (:fetcher "github" :repo "xenodium/chatgpt-shell")
-  :bind
-  ("<leader>[c" . 'chatgpt-shell)
-  ("<leader>[d" . 'dall-e-shell)
-  :init
-  (setq chatgpt-shell-openai-key (auth-source-pick-first-password :host "chat.openai.com"))
-  )
-#+end_src
-
-** codegpt
-:PROPERTIES:
-:ID:       B8118F5A-DBAD-41EE-85BC-800EA00ACC2C
-:END:
-
+* GPT interface
+** Notes
 Interesting ideas:
 - Generating fake data/dataframe
 - Writing unit tests for a function
@@ -1307,6 +1182,159 @@ def getUserBalance(id):
     Look up the user in the database ‘UserData' and return their current account balance.
     """
 #+end_src
+
+** chatgpt-shell
+
+#+begin_src emacs-lisp
+(use-package chatgpt-shell
+  :vc (:fetcher "github" :repo "xenodium/chatgpt-shell")
+  :bind
+  ("s-c" . 'chatgpt-shell)
+  ("s-d" . 'dall-e-shell)
+  :init
+  (setq chatgpt-shell-openai-key (auth-source-pick-first-password :host "chat.openai.com"))
+  )
+#+end_src
+
+** COMMENT aide
+
+#+begin_src emacs-lisp
+(use-package aide
+  :vc (:fetcher "github" :repo "junjizhi/aide.el")
+  :bind
+  ("s-b" . 'lc/aide-openai-complete-buffer-insert)
+  (:map evil-visual-state-map
+        ("s-r" . 'lc/aide-openai-complete-region-insert))
+  :custom
+  (aide-openai-api-key-getter (lambda () (auth-source-pick-first-password :host "chat.openai.com")))
+  (aide-ai-model 'text-davinci-003)
+  (aide-max-output-tokens 2000)
+  (aide-temperature 0.1)
+  (aide-top-p 0.1)
+  :preface
+  (defun lc/aide-openai-complete (api-key prompt)
+    "Return the prompt answer from OpenAI API."
+    (let ((result nil)
+          (auth-value (format "Bearer %s" api-key)))
+      (request
+        "https://api.openai.com/v1/completions"
+        :type "POST"
+        :data (json-encode `(("prompt" . ,prompt)
+                             ("model"  . ,aide-ai-model)
+                             ("max_tokens" . ,aide-max-output-tokens)
+                             ("temperature" . ,aide-temperature)
+                             ("frequency_penalty" . ,aide-frequency-penalty)
+                             ("presence_penalty" . ,aide-presence-penalty)
+                             ("top_p" . ,aide-top-p)))
+        :headers `(("Authorization" . ,auth-value) ("Content-Type" . "application/json"))
+        :sync t
+        :parser 'json-read
+        :success (cl-function
+                  (lambda (&key data &allow-other-keys)
+                    (setq result (alist-get 'text (elt (alist-get 'choices data) 0)))))
+        :error (cl-function (lambda (&rest args &key error-thrown &allow-other-keys)
+                              (message "Got error: %S" error-thrown))))
+      result))
+
+  (defun lc/aide-openai-complete-from-str-insert (str)
+    (let* ((result (lc/aide-openai-complete (funcall aide-openai-api-key-getter) str))
+           original-point)
+      (goto-char (point-max))
+      (setq original-point (point))
+      (if result
+          (progn
+            (insert "\n" result)
+            (fill-paragraph)
+            result)
+        (message "Empty result"))))
+
+  (defun lc/aide-openai-complete-region-insert (start end)
+    "Send the region to OpenAI and insert the result to the end of buffer. "
+    (interactive "r")
+    (let ((str (buffer-substring-no-properties start end)))
+      (lc/aide-openai-complete-from-str-insert str)))
+
+  (defun lc/aide-openai-complete-buffer-insert ()
+    "Send the ENTIRE buffer, up to max tokens, to OpenAI and insert the result to the end of buffer."
+    (interactive)
+    (let ((str (buffer-substring-no-properties (point-min) (point-max))))
+      (lc/aide-openai-complete-from-str-insert str))))
+#+end_src
+
+** aide, minimal
+
+#+begin_src emacs-lisp
+(use-package emacs
+  :bind
+  ("s-b" . 'lc/aide-openai-complete-buffer-insert)
+  (:map evil-visual-state-map
+        ("s-r" . 'lc/aide-openai-complete-region-insert))
+  :init
+  (setq aide-openai-api-key-getter (lambda () (auth-source-pick-first-password :host "chat.openai.com")))
+  (setq aide-ai-model 'text-davinci-003)
+  (setq aide-max-output-tokens 2000)
+  (setq aide-temperature 0.1)
+  (setq aide-top-p 0.1)
+  (setq aide-frequency-penalty 0)
+  (setq aide-presence-penalty 0)
+
+  (defun lc/aide-openai-complete (api-key prompt)
+    "Return the prompt answer from OpenAI API."
+    (let ((result nil)
+          (auth-value (format "Bearer %s" api-key)))
+      (request
+       "https://api.openai.com/v1/completions"
+       :type "POST"
+       :data (json-encode `(("prompt" . ,prompt)
+                            ("model"  . ,aide-ai-model)
+                            ("max_tokens" . ,aide-max-output-tokens)
+                            ("temperature" . ,aide-temperature)
+                            ("frequency_penalty" . ,aide-frequency-penalty)
+                            ("presence_penalty" . ,aide-presence-penalty)
+                            ("top_p" . ,aide-top-p)))
+       :headers `(("Authorization" . ,auth-value) ("Content-Type" . "application/json"))
+       :sync t
+       :parser 'json-read
+       :success (cl-function
+                 (lambda (&key data &allow-other-keys)
+                   (setq result (alist-get 'text (elt (alist-get 'choices data) 0)))))
+       :error (cl-function (lambda (&rest args &key error-thrown &allow-other-keys)
+                             (message "Got error: %S" error-thrown))))
+      result))
+
+  (defun lc/aide-openai-complete-from-str-insert (str)
+    (let* ((result (lc/aide-openai-complete (funcall aide-openai-api-key-getter) str))
+           original-point)
+      (goto-char (point-max))
+      (setq original-point (point))
+      (if result
+          (progn
+            (insert "\n" result)
+            (fill-paragraph)
+            result)
+        (message "Empty result"))))
+
+  (defun lc/aide-openai-complete-region-insert (start end)
+    "Send the region to OpenAI and insert the result to the end of buffer. "
+    (interactive "r")
+    (let ((str (buffer-substring-no-properties start end)))
+      (lc/aide-openai-complete-from-str-insert str)))
+
+  (defun lc/aide-openai-complete-buffer-insert ()
+    "Send the ENTIRE buffer, up to max tokens, to OpenAI and insert the result to the end of buffer."
+    (interactive)
+    (let ((str (buffer-substring-no-properties (point-min) (point-max))))
+      (lc/aide-openai-complete-from-str-insert str)))
+  :config
+  (require 'request)
+
+  )
+#+end_src
+
+** COMMENT codegpt
+:PROPERTIES:
+:ID:       B8118F5A-DBAD-41EE-85BC-800EA00ACC2C
+:END:
 
 #+begin_src emacs-lisp
 (use-package codegpt
@@ -1423,7 +1451,7 @@ Features
   )
 #+end_src
 
-** COMMENT copilot
+** copilot
 
 Notest:
 - [[https://github.com/jimeh/.emacs.d/blob/master/modules/completion/siren-copilot.el][Reference]]
@@ -1431,18 +1459,133 @@ Notest:
 
 #+begin_src emacs-lisp
 (use-package copilot
-  ;; :straight
-  ;; (:host github :repo "zerolfx/copilot.el" :files ("dist" "*.el"))
+  :vc (:fetcher "github" :repo "zerolfx/copilot.el")
   :hook
   (prog-mode . copilot-mode)
-  :general
-  ("C-<tab>" 'siren-copilot-dwim-with-mods)
-  ("<backtab>" 'siren-copilot-dwim-with-mods)
-  ("M-F" 'siren-copilot-dwim-by-word)
-  ("M-E" 'siren-copilot-dwim-by-line)
-  (:keymaps 'copilot-completion-map
-            "M-N" 'copilot-next-completion
-            "M-P" 'copilot-previous-completion)
+  :custom
+  (copilot-idle-delay 0)
+  :bind
+  ("C-TAB" . 'copilot-accept-completion-by-word)
+  ("C-<tab>" . 'copilot-accept-completion-by-word)
+  (:map copilot-completion-map
+        ("<tab>" . 'copilot-accept-completion)
+        ("C-g" . #'copilot-clear-overlay)
+        ("C-n" . #'copilot-next-completion)
+        ("C-p" . #'copilot-previous-completion)))
+#+end_src
+
+** Search with alpaca
+
+#+begin_src emacs-lisp
+(use-package emacs
+  :init
+  (defcustom swl-llama-binary "~/git/alpaca.cpp/chat"
+    "Path to the llama.cpp compiled binary")
+
+  (defcustom swl-llama-model-path "~/git/alpaca.cpp/ggml-alpaca-7b-q4.bin"
+    "path to LLama-models")
+
+  (defcustom swl-llama-args '("-t" "9")
+    "Arguments to pass to lama")
+
+  (defvar swl-ggml-f16-file-name "ggml-model-f16.bin")
+  (defvar swl-ggml-quantized-file-name "ggml-model-q4_0.bin")
+
+  (defvar swl-model-sizes '("7B" "13B" "30B" "60B"))
+
+  (defvar swl-current-process-buffer nil "Mini-buffer currently being used to display the process.")
+
+  (defvar swl-query-hist nil)
+
+  (defvar-local swl-process-state nil "State of the swl buffer.")
+  (defvar-local swl-process-start-point nil "Point at which query starts.")
+  (defvar-local swl-process-cmd nil "Original query command running in the buffer.")
+
+  (defvar swl-result-mode-map
+    (let ((map (make-sparse-keymap)))
+      (suppress-keymap map)
+      (define-key map "q" 'swl-quit)
+      (define-key map "r" 'swl-restart-query)
+      map))
+
+  (defun swl-make-buffer-command (command &optional full)
+    "Return a string that invokes llama.cpp with a query COMMAND and model MODEL."
+    (format "%s -p \"%s\" --model %s %s"
+              swl-llama-binary
+              command
+              swl-llama-model-path
+              (string-join swl-llama-args " ")))
+
+  (defun swl-clear-running-process ()
+    (when (and swl-current-process-buffer (buffer-live-p swl-current-process-buffer))
+      (let  ((process (get-buffer-process swl-current-process-buffer)))
+        (if process (kill-process process)))
+      (with-current-buffer swl-current-process-buffer
+        (erase-buffer))))
+
+  (defun swl-quit ()
+    (interactive)
+    (swl-clear-running-process)
+    (when swl-current-process-buffer
+      (with-current-buffer swl-current-process-buffer
+        (setq swl-process-cmd nil)
+        (setq swl-process-state nil)))
+    (quit-window))
+
+  (defun swl-run-query (cmd)
+    (if swl-current-process-buffer
+        (swl-clear-running-process))
+    (with-current-buffer swl-current-process-buffer
+      (setq swl-process-state nil)
+      (setq swl-process-cmd cmd)
+      (goto-char 0)
+      (insert "CMD: ") (insert cmd) (insert "\n")
+      (insert "Press r to re-run query and q to quit.\n")
+      (goto-char (point-max))
+      (setq swl-process-start-point (make-marker))
+      (move-marker swl-process-start-point (point))
+      (use-local-map swl-result-mode-map))
+    (let (proc)
+      (setq proc (start-process-shell-command
+                  "swl-search-process"
+                  swl-current-process-buffer
+                  cmd))
+      (when (and proc (processp proc))
+        (set-process-filter proc #'swl-filter))))
+
+  (defun swl-restart-query ()
+    (interactive)
+    (swl-clear-running-process)
+    (when (and swl-current-process-buffer (buffer-live-p swl-current-process-buffer))
+      (with-current-buffer swl-current-process-buffer
+        (when swl-process-cmd
+          (swl-run-query swl-process-cmd)))))
+
+  (defun swl-filter (process event)
+    (when (and swl-current-process-buffer (buffer-live-p swl-current-process-buffer) (process-live-p process))
+      (with-current-buffer swl-current-process-buffer
+        (save-excursion
+          (goto-char (process-mark process))
+          (insert event)
+          (set-marker (process-mark process) (point))
+          (unless swl-process-state
+            (goto-char (point-min))
+            (setq swl-process-state
+                  (search-forward-regexp "sampling parameters:.*\n" nil t))
+            (if swl-process-state
+                (delete-region (marker-position swl-process-start-point) swl-process-state)))))))
+
+  (defun search-with-llama (query &optional model-size model-type)
+    (interactive
+     (list
+      (completing-read "" swl-query-hist nil nil nil 'swl-query-hist)))
+    (unless (and swl-current-process-buffer (buffer-live-p swl-current-process-buffer))
+      (setq swl-current-process-buffer (get-buffer-create "*swl-process-buffer*")))
+    (let (cmd)
+      (setq cmd (swl-make-buffer-command query))
+      (swl-run-query cmd)
+      (display-buffer-at-bottom swl-current-process-buffer '(previous-window))
+      (pop-to-buffer swl-current-process-buffer)))
   )
 #+end_src
 
@@ -1457,6 +1600,7 @@ Notest:
    ("<leader>gG" . 'magit-status-here)
    ("<leader>gl" . 'magit-log)
    (:map magit-status-mode-map
+         ("SPC" . evil-send-leader)
          ("TAB" . 'magit-section-toggle)
          ("ESC" . 'transient-quit-one))
    (:map magit-stash-mode-map
@@ -1861,7 +2005,13 @@ Notest:
   (org-mode . org-modern-mode))
 #+end_src
 
-** org export to HTML
+** org export config to HTML
+
+Notes:
+- Github pages is set up on my config repo
+  - Every time I push to =main= the HTML files get deployed to e.g. =https://lucacambiaghi.com/crafted-emacs-config/readme.html=
+- To export:
+  - Restart emacs and run =org-export-dispatch=
 
 #+begin_src emacs-lisp
 (use-package org-html-themify
@@ -1876,8 +2026,7 @@ Notest:
   (setq org-html-themify-themes
         '((light . modus-operandi)
           (dark . modus-operandi)))
-  (setq org-export-backends '(html))
-  )
+  (setq org-export-backends '(html)))
 #+end_src
 
 * Programming languages
@@ -1939,6 +2088,12 @@ Notest:
   (lsp-ui-peek-always-show t)
   (lsp-ui-peek-fontify 'always)
   )
+#+end_src
+
+** clojure
+
+#+begin_src emacs-lisp
+(use-package clojure-mode)
 #+end_src
 
 ** Nix
@@ -2089,7 +2244,7 @@ Notest:
   :hook
   (;; (dap-mode . corfu-mode)
    (dap-terminated . lc/hide-debug-windows)
-   (dap-stopped  . lc/switch-to-output-buf)
+   ;; (dap-stopped  . lc/switch-to-output-buf)
    ;; (dap-session-created . (lambda (_arg) (projectile-save-project-buffers)))
    (dap-ui-repl-mode . (lambda () (setq-local truncate-lines t))))
   :bind
@@ -2165,11 +2320,10 @@ Notest:
       (winum-select-window-1)
       (lc/window-resize-to-percentage 0.66)))
   (defun lc/switch-to-output-buf ()
-    (when
-        (string-equal
-         (car (last (split-string buffer-file-name "/") ) )
-         "pytest.py")
-      (switch-to-buffer (dap--debug-session-output-buffer (dap--cur-session-or-die)))))
+    (when-let* ((splits (split-string buffer-file-name "/"))
+                (bla (car (last splits))))
+      (when (string-equal bla "pytest.py")
+        (switch-to-buffer (dap--debug-session-output-buffer (dap--cur-session-or-die))))))
   :config
   ;; configure windows
   (require 'dap-ui)
