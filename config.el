@@ -827,55 +827,50 @@ be passed to EVAL-FUNC as its rest arguments"
   :config
   (require 'cl))
 
-(use-package chatgpt-shell
-  :vc (:fetcher "github" :repo "xenodium/chatgpt-shell")
-  :bind
-  ("s-c" . 'chatgpt-shell)
-  ("s-d" . 'dall-e-shell)
-  :init
-  (setq chatgpt-shell-openai-key (auth-source-pick-first-password :host "chat.openai.com"))
-  )
-
 (use-package emacs
   :bind
-  ("s-b" . 'lc/aide-openai-complete-buffer-insert)
+  ("s-b" . 'lc/gpt-complete-buffer-and-insert)
+  ("s-p" . (lambda () (interactive)
+             (find-file-other-window lc/gpt-prompts-file)))
   (:map evil-visual-state-map
-        ("s-r" . 'lc/aide-openai-complete-region-insert))
+        ("s-r" . 'lc/gpt-complete-region-and-insert))
   :init
-  (setq aide-openai-api-key-getter (lambda () (auth-source-pick-first-password :host "chat.openai.com")))
-  (setq aide-ai-model 'text-davinci-003)
-  (setq aide-max-output-tokens 2000)
-  (setq aide-temperature 0.1)
-  (setq aide-top-p 0.1)
-  (setq aide-frequency-penalty 0)
-  (setq aide-presence-penalty 0)
+  (setq lc/gpt-api-key-getter (lambda () (auth-source-pick-first-password :host "chat.openai.com")))
+  (setq lc/gpt-model 'text-davinci-003)
+  (setq lc/gpt-max-output-tokens 2000)
+  (setq lc/gpt-temperature 0.1)
+  (setq lc/gpt-top-p 0.1)
+  (setq lc/gpt-frequency-penalty 0)
+  (setq lc/gpt-presence-penalty 0)
+  (setq lc/gpt-prompts-file
+        (concat denote-directory "/20230330T145824--useful-gpt-prompts__llm_org.org"))
 
-  (defun lc/aide-openai-complete (api-key prompt)
+  (defun lc/gpt-complete-str (api-key prompt)
     "Return the prompt answer from OpenAI API."
     (let ((result nil)
           (auth-value (format "Bearer %s" api-key)))
       (request
-       "https://api.openai.com/v1/completions"
-       :type "POST"
-       :data (json-encode `(("prompt" . ,prompt)
-                            ("model"  . ,aide-ai-model)
-                            ("max_tokens" . ,aide-max-output-tokens)
-                            ("temperature" . ,aide-temperature)
-                            ("frequency_penalty" . ,aide-frequency-penalty)
-                            ("presence_penalty" . ,aide-presence-penalty)
-                            ("top_p" . ,aide-top-p)))
-       :headers `(("Authorization" . ,auth-value) ("Content-Type" . "application/json"))
-       :sync t
-       :parser 'json-read
-       :success (cl-function
-                 (lambda (&key data &allow-other-keys)
-                   (setq result (alist-get 'text (elt (alist-get 'choices data) 0)))))
-       :error (cl-function (lambda (&rest args &key error-thrown &allow-other-keys)
-                             (message "Got error: %S" error-thrown))))
+        "https://api.openai.com/v1/completions"
+        :type "POST"
+        :data (json-encode `(("prompt" . ,prompt)
+                             ("model"  . ,lc/gpt-model)
+                             ("max_tokens" . ,lc/gpt-max-output-tokens)
+                             ("temperature" . ,lc/gpt-temperature)
+                             ("frequency_penalty" . ,lc/gpt-frequency-penalty)
+                             ("presence_penalty" . ,lc/gpt-presence-penalty)
+                             ("top_p" . ,lc/gpt-top-p)))
+        :headers `(("Authorization" . ,auth-value) ("Content-Type" . "application/json"))
+        :sync t
+        :parser 'json-read
+        :success (cl-function
+                  (lambda (&key data &allow-other-keys)
+                    (setq result (alist-get 'text (elt (alist-get 'choices data) 0)))))
+        :error (cl-function (lambda (&rest args &key error-thrown &allow-other-keys)
+                              (message "Got error: %S" error-thrown))))
       result))
 
-  (defun lc/aide-openai-complete-from-str-insert (str)
-    (let* ((result (lc/aide-openai-complete (funcall aide-openai-api-key-getter) str))
+  (defun lc/gpt-complete-from-str-and-insert (str)
+    (let* ((result (lc/gpt-complete-str (funcall lc/gpt-api-key-getter) str))
            original-point)
       (goto-char (point-max))
       (setq original-point (point))
@@ -886,52 +881,32 @@ be passed to EVAL-FUNC as its rest arguments"
             result)
         (message "Empty result"))))
 
-  (defun lc/aide-openai-complete-region-insert (start end)
+  (defun lc/gpt-complete-region-and-insert (start end)
     "Send the region to OpenAI and insert the result to the end of buffer. "
     (interactive "r")
     (let ((str (buffer-substring-no-properties start end)))
-      (lc/aide-openai-complete-from-str-insert str)))
+      (lc/gpt-complete-from-str-and-insert str)))
 
-  (defun lc/aide-openai-complete-buffer-insert ()
+  (defun lc/gpt-complete-buffer-and-insert ()
     "Send the ENTIRE buffer, up to max tokens, to OpenAI and insert the result to the end of buffer."
     (interactive)
     (let ((str (buffer-substring-no-properties (point-min) (point-max))))
-      (lc/aide-openai-complete-from-str-insert str)))
+      (lc/gpt-complete-from-str-and-insert str)))
   :config
-  (require 'request)
-
-  )
-
-(use-package copilot
-  :vc (:fetcher "github" :repo "zerolfx/copilot.el")
-  :hook
-  (prog-mode . copilot-mode)
-  :custom
-  (copilot-idle-delay 0)
-  :bind
-  ("C-TAB" . 'copilot-accept-completion-by-word)
-  ("C-<tab>" . 'copilot-accept-completion-by-word)
-  (:map copilot-completion-map
-        ("<tab>" . 'copilot-accept-completion)
-        ("C-g" . #'copilot-clear-overlay)
-        ("C-n" . #'copilot-next-completion)
-        ("C-p" . #'copilot-previous-completion)))
+  (require 'request))
 
 (use-package emacs
+  :bind
+  ("<leader>sa" . 'search-with-alpaca)
   :init
-  (defcustom swl-llama-binary "~/git/alpaca.cpp/chat"
-    "Path to the llama.cpp compiled binary")
+  (defcustom alpaca-binary "~/git/alpaca.cpp/chat"
+    "Path to the alpaca.cpp compiled binary")
 
-  (defcustom swl-llama-model-path "~/git/alpaca.cpp/ggml-alpaca-7b-q4.bin"
-    "path to LLama-models")
+  (defcustom alpaca-model-path "~/git/alpaca.cpp/ggml-alpaca-7b-q4.bin"
+    "path to alpaca-models")
 
-  (defcustom swl-llama-args '("-t" "9")
-    "Arguments to pass to lama")
-
-  (defvar swl-ggml-f16-file-name "ggml-model-f16.bin")
-  (defvar swl-ggml-quantized-file-name "ggml-model-q4_0.bin")
-
-  (defvar swl-model-sizes '("7B" "13B" "30B" "60B"))
+  (defcustom alpaca-args '("-t" "9")
+    "Arguments to pass to alpaca")
 
   (defvar swl-current-process-buffer nil "Mini-buffer currently being used to display the process.")
 
@@ -949,12 +924,12 @@ be passed to EVAL-FUNC as its rest arguments"
       map))
 
   (defun swl-make-buffer-command (command &optional full)
-    "Return a string that invokes llama.cpp with a query COMMAND and model MODEL."
+    "Return a string that invokes alpaca.cpp with a query COMMAND and model MODEL."
     (format "%s -p \"%s\" --model %s %s"
-              swl-llama-binary
+              alpaca-binary
               command
-              swl-llama-model-path
-              (string-join swl-llama-args " ")))
+              alpaca-model-path
+              (string-join alpaca-args " ")))
 
   (defun swl-clear-running-process ()
     (when (and swl-current-process-buffer (buffer-live-p swl-current-process-buffer))
@@ -1015,7 +990,7 @@ be passed to EVAL-FUNC as its rest arguments"
             (if swl-process-state
                 (delete-region (marker-position swl-process-start-point) swl-process-state)))))))
 
-  (defun search-with-llama (query &optional model-size model-type)
+  (defun search-with-alpaca (query &optional model-size model-type)
     (interactive
      (list
       (completing-read "" swl-query-hist nil nil nil 'swl-query-hist)))
@@ -1026,6 +1001,40 @@ be passed to EVAL-FUNC as its rest arguments"
       (swl-run-query cmd)
       (display-buffer-at-bottom swl-current-process-buffer '(previous-window))
       (pop-to-buffer swl-current-process-buffer)))
+  )
+
+(use-package chatgpt-shell
+  :vc (:fetcher "github" :repo "xenodium/chatgpt-shell")
+  :bind
+  ("s-c" . 'chatgpt-shell)
+  ("s-d" . 'dall-e-shell)
+  :init
+  (setq chatgpt-shell-openai-key (auth-source-pick-first-password :host "chat.openai.com"))
+  )
+
+(use-package copilot
+  :vc (:fetcher "github" :repo "zerolfx/copilot.el")
+  :hook
+  (prog-mode . (lambda () (when lc/copilot-enabled (copilot-mode))))
+  :custom
+  (copilot-idle-delay 0)
+  (lc/copilot-enabled t)
+  :bind
+  ("C-TAB" . 'copilot-accept-completion-by-word)
+  ("C-<tab>" . 'copilot-accept-completion-by-word)
+  ("s-t" . (lambda () (interactive)
+             (setq lc/copilot-enabled (if lc/copilot-enabled nil t))
+             (message (if lc/copilot-enabled "Enabled copilot-mode" "Disabled copilot-mode"))
+             (lc/toggle-copilot-mode)))
+  (:map copilot-completion-map
+        ("<tab>" . 'copilot-accept-completion)
+        ("C-g" . #'copilot-clear-overlay)
+        ("C-n" . #'copilot-next-completion)
+        ("C-p" . #'copilot-previous-completion))
+  :preface
+  (defun lc/toggle-copilot-mode ()
+    (interactive)
+    (copilot-mode (if lc/copilot-enabled 1 -1)))
   )
 
 (use-package magit
