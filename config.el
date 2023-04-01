@@ -643,6 +643,52 @@ be passed to EVAL-FUNC as its rest arguments"
   :bind
   ("<leader>se" . 'iedit-mode))
 
+(use-package evil-snipe
+  :hook
+  (evil-local-mode . evil-snipe-local-mode)
+  :custom
+  (evil-snipe-spillover-scope 'whole-visible)
+  :config
+  (defun evil-snipe--collect-keys (&optional count forward-p)
+    (let ((echo-keystrokes 0) ; don't mess with the prompt, Emacs
+          (count (or count 1))
+          (i evil-snipe--match-count)
+          keys)
+      (unless forward-p
+        (setq count (- count)))
+      (unwind-protect
+          (catch 'abort
+            (while (> i 0)
+              (let* ((prompt (format "%d>%s" i (mapconcat #'char-to-string keys "")))
+                     (key (evil-read-key (if evil-snipe-show-prompt prompt))))
+                (cond
+                 ;; TAB adds more characters if `evil-snipe-tab-increment'
+                 ((and evil-snipe-tab-increment (eq key ?\t))  ;; TAB
+                  (cl-incf i))
+                 ;; Enter starts search with current chars
+                 ((memq key '(?\r ?\n))  ;; RET
+                  (throw 'abort (if (= i evil-snipe--match-count) 'repeat keys)))
+                 ;; Abort
+                 ((eq key ?\e)  ;; ESC
+                  (evil-snipe--cleanup)
+                  (throw 'abort 'abort))
+                 (t ; Otherwise, process key
+                  (cond ((eq key ?\d)  ; DEL (backspace) deletes a character
+                         (cl-incf i)
+                         (if (<= (length keys) 1)
+                             (progn (evil-snipe--cleanup)
+                                    (throw 'abort 'abort))
+                           (nbutlast keys)))
+                        (t ;; Otherwise add it
+                         (setq keys (append keys (list key)))
+                         (cl-decf i)))
+                  (when evil-snipe-enable-incremental-highlight
+                    (evil-snipe--cleanup)
+                    (evil-snipe--highlight-all count keys)
+                    (add-hook 'pre-command-hook #'evil-snipe--cleanup))))))
+            keys))))
+  )
+
   (use-package flymake
     :ensure nil
     :hook (((python-base-mode emacs-lisp-mode) . flymake-mode)
@@ -830,13 +876,15 @@ be passed to EVAL-FUNC as its rest arguments"
 (use-package emacs
   :bind
   ("s-b" . 'lc/gpt-complete-buffer-and-insert)
-  ("s-p" . (lambda () (interactive)
-             (find-file-other-window lc/gpt-prompts-file)))
+  ("<leader>op" . (lambda () (interactive)
+                    (find-file-other-window lc/gpt-prompts-file)))
   (:map evil-visual-state-map
-        ("s-r" . 'lc/gpt-complete-region-and-insert))
+        ("s-r" . 'lc/gpt-complete-region-and-insert)
+        ("s-p" . 'lc/gpt-complete-with-prompt-prefix-and-insert))
   :init
   (setq lc/gpt-api-key-getter (lambda () (auth-source-pick-first-password :host "chat.openai.com")))
-  (setq lc/gpt-model 'text-davinci-003)
+  ;; (setq lc/gpt-model 'text-davinci-003)
+  (setq lc/gpt-model 'gpt-3.5-turbo-0301)
   (setq lc/gpt-max-output-tokens 2000)
   (setq lc/gpt-temperature 0.1)
   (setq lc/gpt-top-p 0.1)
@@ -844,6 +892,7 @@ be passed to EVAL-FUNC as its rest arguments"
   (setq lc/gpt-presence-penalty 0)
   (setq lc/gpt-prompts-file
         (concat denote-directory "/20230330T145824--useful-gpt-prompts__llm_org.org"))
+  (setq lc/gpt-prompt-prefix-alist '(("complete" . "Complete the following code.")))
 
   (defun lc/gpt-complete-str (api-key prompt)
     "Return the prompt answer from OpenAI API."
@@ -869,11 +918,9 @@ be passed to EVAL-FUNC as its rest arguments"
                               (message "Got error: %S" error-thrown))))
       result))
 
-  (defun lc/gpt-complete-from-str-and-insert (str)
-    (let* ((result (lc/gpt-complete-str (funcall lc/gpt-api-key-getter) str))
-           original-point)
+  (defun lc/gpt-complete-and-insert (prompt)
+    (let* ((result (lc/gpt-complete-str (funcall lc/gpt-api-key-getter) prompt)))
       (goto-char (point-max))
-      (setq original-point (point))
       (if result
           (progn
             (insert "\n" result)
@@ -881,17 +928,81 @@ be passed to EVAL-FUNC as its rest arguments"
             result)
         (message "Empty result"))))
 
+  (defun lc/gpt-complete-with-prompt-prefix-and-insert (start end)
+    (interactive "r")
+    (let* ((offset 100)
+           (action (completing-read
+                    "Select completion action: "
+                    (lambda (string predicate action)
+                      (if (eq action 'metadata)
+                          `(metadata
+                            (display-sort-function . ,#'identity)
+                            (annotation-function
+                             . ,(lambda (cand)
+                                  (concat (propertize " " 'display `((space :align-to (- right ,offset))))
+                                          (cdr (assoc cand lc/gpt-prompt-prefix-alist))))))
+                        (complete-with-action action lc/gpt-prompt-prefix-alist string predicate)))
+                    nil t))
+           (instruction (cdr (assoc action lc/gpt-prompt-prefix-alist)))
+           (text (string-trim (buffer-substring start end)))
+           (prompt (concat instruction "\n" text)))
+      (lc/gpt-complete-and-insert prompt)))
+
   (defun lc/gpt-complete-region-and-insert (start end)
     "Send the region to OpenAI and insert the result to the end of buffer. "
     (interactive "r")
     (let ((str (buffer-substring-no-properties start end)))
-      (lc/gpt-complete-from-str-and-insert str)))
+      (lc/gpt-complete-and-insert str)))
 
   (defun lc/gpt-complete-buffer-and-insert ()
     "Send the ENTIRE buffer, up to max tokens, to OpenAI and insert the result to the end of buffer."
     (interactive)
-    (let ((str (buffer-substring-no-properties (point-min) (point-max))))
-      (lc/gpt-complete-from-str-and-insert str)))
+    (let ((prompt (buffer-substring-no-properties (point-min) (point-max))))
+      (lc/gpt-complete-and-insert prompt)))
+
+  (defun lc/gpt-complete-with-chat (api-key messages)
+    (let ((result nil)
+          (auth-value (format "Bearer %s" api-key)))
+      (request
+        "https://api.openai.com/v1/chat/completions"
+        :type "POST"
+        :data (json-encode `(("messages" . ,messages)
+                             ("model"  . ,lc/gpt-model)
+                             ;; ("max_tokens" . ,lc/gpt-max-output-tokens)
+                             ;; ("temperature" . ,lc/gpt-temperature)
+                             ;; ("frequency_penalty" . ,lc/gpt-frequency-penalty)
+                             ;; ("presence_penalty" . ,lc/gpt-presence-penalty)
+                             ;; ("top_p" . ,lc/gpt-top-p)
+                             ;; chat
+                             ;; ("user"              . ,user)
+                             ;; ("n"                 . ,n)
+                             ;; ("stream"            . ,stream)
+                             ;; ("stop"              . ,stop)
+                             ;; ("logit_bias"        . ,logit-bias)
+                             ))
+        :headers `(("Authorization" . ,auth-value) ("Content-Type" . "application/json"))
+        :sync t
+        :parser 'json-read
+        :success (cl-function
+                  (lambda (&key data &allow-other-keys)
+                    (setq result (alist-get 'content (alist-get 'message (elt (alist-get 'choices data) 0))))))
+        :error (cl-function (lambda (&rest args &key error-thrown &allow-other-keys)
+                              (message "Got error: %S" error-thrown))))
+      result))
+
+  (defun lc/gpt-complete-with-chat-and-insert (start end)
+    (interactive "r")
+    (let* ((messages     `[(("role"    . "user")
+                            ("content" . ,(buffer-substring-no-properties start end)))])
+           (result (lc/gpt-complete-with-chat (funcall lc/gpt-api-key-getter) messages)))
+      (goto-char (point-max))
+      (if result
+          (progn
+            (insert "\n" result)
+            (fill-paragraph)
+            result)
+        (message "Empty result"))))
+
   :config
   (require 'request))
 
@@ -905,7 +1016,7 @@ be passed to EVAL-FUNC as its rest arguments"
   (defcustom alpaca-model-path "~/git/alpaca.cpp/ggml-alpaca-7b-q4.bin"
     "path to alpaca-models")
 
-  (defcustom alpaca-args '("-t" "9")
+  (defcustom alpaca-args '("-t" "8")
     "Arguments to pass to alpaca")
 
   (defvar swl-current-process-buffer nil "Mini-buffer currently being used to display the process.")
@@ -1006,10 +1117,11 @@ be passed to EVAL-FUNC as its rest arguments"
 (use-package chatgpt-shell
   :vc (:fetcher "github" :repo "xenodium/chatgpt-shell")
   :bind
-  ("s-c" . 'chatgpt-shell)
+  ("s-g" . 'chatgpt-shell)
   ("s-d" . 'dall-e-shell)
   :init
   (setq chatgpt-shell-openai-key (auth-source-pick-first-password :host "chat.openai.com"))
+  (setq chatgpt-shell-chatgpt-model-version "gpt-3.5-turbo-0301")
   )
 
 (use-package copilot
@@ -1018,7 +1130,6 @@ be passed to EVAL-FUNC as its rest arguments"
   (prog-mode . (lambda () (when lc/copilot-enabled (copilot-mode))))
   :custom
   (copilot-idle-delay 0)
-  (lc/copilot-enabled t)
   :bind
   ("C-TAB" . 'copilot-accept-completion-by-word)
   ("C-<tab>" . 'copilot-accept-completion-by-word)
@@ -1031,7 +1142,8 @@ be passed to EVAL-FUNC as its rest arguments"
         ("C-g" . #'copilot-clear-overlay)
         ("C-n" . #'copilot-next-completion)
         ("C-p" . #'copilot-previous-completion))
-  :preface
+  :init
+  (setq lc/copilot-enabled t)
   (defun lc/toggle-copilot-mode ()
     (interactive)
     (copilot-mode (if lc/copilot-enabled 1 -1)))
