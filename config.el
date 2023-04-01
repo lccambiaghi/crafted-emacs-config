@@ -894,26 +894,32 @@ be passed to EVAL-FUNC as its rest arguments"
         (concat denote-directory "/20230330T145824--useful-gpt-prompts__llm_org.org"))
   (setq lc/gpt-prompt-prefix-alist '(("complete" . "Complete the following code.")))
 
-  (defun lc/gpt-complete-str (api-key prompt)
+  (defun lc/gpt-complete-str (api-key prompt-or-messages)
     "Return the prompt answer from OpenAI API."
-    (let ((result nil)
-          (auth-value (format "Bearer %s" api-key)))
+    (let* ((result nil)
+           (auth-value (format "Bearer %s" api-key))
+           (chat-model (eq lc/gpt-model 'gpt-3.5-turbo-0301))
+           (url (if chat-model "https://api.openai.com/v1/chat/completions" "https://api.openai.com/v1/completions"))
+           (prompt-key (if chat-model "messages" "prompt")))
       (request
-        "https://api.openai.com/v1/completions"
+        url
         :type "POST"
-        :data (json-encode `(("prompt" . ,prompt)
+        :data (json-encode `((,prompt-key . ,prompt-or-messages)
                              ("model"  . ,lc/gpt-model)
-                             ("max_tokens" . ,lc/gpt-max-output-tokens)
-                             ("temperature" . ,lc/gpt-temperature)
-                             ("frequency_penalty" . ,lc/gpt-frequency-penalty)
-                             ("presence_penalty" . ,lc/gpt-presence-penalty)
-                             ("top_p" . ,lc/gpt-top-p)))
+                             ;; ("max_tokens" . ,lc/gpt-max-output-tokens)
+                             ;; ("temperature" . ,lc/gpt-temperature)
+                             ;; ("frequency_penalty" . ,lc/gpt-frequency-penalty)
+                             ;; ("presence_penalty" . ,lc/gpt-presence-penalty)
+                             ;; ("top_p" . ,lc/gpt-top-p)
+                             ))
         :headers `(("Authorization" . ,auth-value) ("Content-Type" . "application/json"))
         :sync t
         :parser 'json-read
         :success (cl-function
                   (lambda (&key data &allow-other-keys)
-                    (setq result (alist-get 'text (elt (alist-get 'choices data) 0)))))
+                    (setq result (if (eq lc/gpt-model 'gpt-3.5-turbo-0301)
+                                     (alist-get 'content (alist-get 'message (elt (alist-get 'choices data) 0)))
+                                   (alist-get 'text (elt (alist-get 'choices data) 0))))))
         :error (cl-function (lambda (&rest args &key error-thrown &allow-other-keys)
                               (message "Got error: %S" error-thrown))))
       result))
@@ -951,60 +957,19 @@ be passed to EVAL-FUNC as its rest arguments"
   (defun lc/gpt-complete-region-and-insert (start end)
     "Send the region to OpenAI and insert the result to the end of buffer. "
     (interactive "r")
-    (let ((str (buffer-substring-no-properties start end)))
-      (lc/gpt-complete-and-insert str)))
+    (let ((prompt (buffer-substring-no-properties start end))
+          (messages `[(("role"    . "user") ("content" . ,prompt))])
+          (chat-model (eq lc/gpt-model 'gpt-3.5-turbo-0301)))
+      (lc/gpt-complete-and-insert (if chat-model messages prompt))))
 
-  (defun lc/gpt-complete-buffer-and-insert ()
-    "Send the ENTIRE buffer, up to max tokens, to OpenAI and insert the result to the end of buffer."
-    (interactive)
-    (let ((prompt (buffer-substring-no-properties (point-min) (point-max))))
-      (lc/gpt-complete-and-insert prompt)))
+    (defun lc/gpt-complete-buffer-and-insert ()
+      "Send the ENTIRE buffer, up to max tokens, to OpenAI and insert the result to the end of buffer."
+      (interactive)
+      (let ((prompt (buffer-substring-no-properties (point-min) (point-max))))
+        (lc/gpt-complete-and-insert prompt)))
 
-  (defun lc/gpt-complete-with-chat (api-key messages)
-    (let ((result nil)
-          (auth-value (format "Bearer %s" api-key)))
-      (request
-        "https://api.openai.com/v1/chat/completions"
-        :type "POST"
-        :data (json-encode `(("messages" . ,messages)
-                             ("model"  . ,lc/gpt-model)
-                             ;; ("max_tokens" . ,lc/gpt-max-output-tokens)
-                             ;; ("temperature" . ,lc/gpt-temperature)
-                             ;; ("frequency_penalty" . ,lc/gpt-frequency-penalty)
-                             ;; ("presence_penalty" . ,lc/gpt-presence-penalty)
-                             ;; ("top_p" . ,lc/gpt-top-p)
-                             ;; chat
-                             ;; ("user"              . ,user)
-                             ;; ("n"                 . ,n)
-                             ;; ("stream"            . ,stream)
-                             ;; ("stop"              . ,stop)
-                             ;; ("logit_bias"        . ,logit-bias)
-                             ))
-        :headers `(("Authorization" . ,auth-value) ("Content-Type" . "application/json"))
-        :sync t
-        :parser 'json-read
-        :success (cl-function
-                  (lambda (&key data &allow-other-keys)
-                    (setq result (alist-get 'content (alist-get 'message (elt (alist-get 'choices data) 0))))))
-        :error (cl-function (lambda (&rest args &key error-thrown &allow-other-keys)
-                              (message "Got error: %S" error-thrown))))
-      result))
-
-  (defun lc/gpt-complete-with-chat-and-insert (start end)
-    (interactive "r")
-    (let* ((messages     `[(("role"    . "user")
-                            ("content" . ,(buffer-substring-no-properties start end)))])
-           (result (lc/gpt-complete-with-chat (funcall lc/gpt-api-key-getter) messages)))
-      (goto-char (point-max))
-      (if result
-          (progn
-            (insert "\n" result)
-            (fill-paragraph)
-            result)
-        (message "Empty result"))))
-
-  :config
-  (require 'request))
+    :config
+    (require 'request))
 
 (use-package emacs
   :bind
