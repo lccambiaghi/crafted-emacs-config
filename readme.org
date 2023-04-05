@@ -1940,6 +1940,30 @@ Notes:
   :hook
   (emacs-lisp-mode clojure-mode))
 #+end_src
+** tempel
+
+#+begin_src emacs-lisp
+(use-package tempel
+  :custom
+  (tempel-trigger-prefix "<")
+  (tempel-path (concat user-config-directory "/templates"))
+  :hook
+  ((prog-mode text-mode) . tempel-setup-capf)
+  :preface
+  ;; Setup completion at point
+  (defun tempel-setup-capf ()
+    ;; Add the Tempel Capf to `completion-at-point-functions'.
+    ;; `tempel-expand' only triggers on exact matches. Alternatively use
+    ;; `tempel-complete' if you want to see all matches, but then you
+    ;; should also configure `tempel-trigger-prefix', such that Tempel
+    ;; does not trigger too often when you don't expect it. NOTE: We add
+    ;; `tempel-expand' *before* the main programming mode Capf, such
+    ;; that it will be tried first.
+    (setq-local completion-at-point-functions
+                (cons #'tempel-complete
+                      completion-at-point-functions)))
+  )
+#+end_src
 
 ** Transpose frame
 
@@ -2705,7 +2729,8 @@ We can avoid evaluation of code with:
     (kbd "<leader>wv")  'evil-window-vsplit
     (kbd "<leader>w=")  'balance-windows-area)
   (evil-define-key 'insert 'global
-    (kbd "<leader>SPC") 'execute-extended-command)
+    (kbd "<leader>SPC") 'execute-extended-command
+    (kbd "M-<tab>") 'complete-symbol)
   (evil-define-key 'visual 'global
     (kbd "<leader>SPC") 'execute-extended-command)
   ;; dired

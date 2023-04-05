@@ -151,23 +151,23 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
   (add-to-list 'recentf-exclude no-littering-var-directory)
   (add-to-list 'recentf-exclude no-littering-etc-directory))
 
-(require 'crafted-defaults)    ; Sensible default settings for Emacs
-;; (require 'crafted-updates)     ; Tools to upgrade Crafted Emacs
-(require 'crafted-completion)  ; selection framework based on `vertico`
-(require 'crafted-ui)          ; Better UI experience (modeline etc.)
-(require 'crafted-windows)     ; Window management configuration
-(require 'crafted-editing)     ; Whitspace trimming, auto parens etc.
-(require 'lc-osx)
-(require 'crafted-evil)        ; An `evil-mode` configuration
-(require 'crafted-org)         ; org-appear, clickable hyperlinks etc.
-(require 'crafted-project)     ; built-in alternative to projectile
-(require 'crafted-startup)     ; splash scren
-(require 'crafted-workspaces)
-;; (require 'crafted-speedbar)    ; built-in file-tree
-;; (require 'crafted-screencast)  ; show current command and binding in modeline
-;; (require 'crafted-compile)     ; automatically compile some emacs lisp files
-;; (require 'crafted-python)
-(require 'crafted-ide)
+  (require 'crafted-defaults)    ; Sensible default settings for Emacs
+  ;; (require 'crafted-updates)     ; Tools to upgrade Crafted Emacs
+  (require 'crafted-completion)  ; selection framework based on `vertico`
+  (require 'crafted-ui)          ; Better UI experience (modeline etc.)
+  (require 'crafted-windows)     ; Window management configuration
+  (require 'crafted-editing)     ; Whitspace trimming, auto parens etc.
+  (require 'lc-osx)
+  (require 'crafted-evil)        ; An `evil-mode` configuration
+  (require 'crafted-org)         ; org-appear, clickable hyperlinks etc.
+  (require 'crafted-project)     ; built-in alternative to projectile
+  (require 'crafted-startup)     ; splash scren
+  (require 'crafted-workspaces)
+  ;; (require 'crafted-speedbar)    ; built-in file-tree
+  ;; (require 'crafted-screencast)  ; show current command and binding in modeline
+  ;; (require 'crafted-compile)     ; automatically compile some emacs lisp files
+  ;; (require 'crafted-python)
+  (require 'crafted-ide)
 
 (use-package emacs
   :init
@@ -1344,22 +1344,22 @@ be passed to EVAL-FUNC as its rest arguments"
      (max (point) (mark))))
   )
 
-(use-package flymake
-  :ensure nil
-  :hook (((python-base-mode emacs-lisp-mode) . flymake-mode)
-         ;; (lsp-managed-mode . (lambda () (cond ((derived-mode-p 'python-base-mode)
-         ;;                                       (add-hook 'flymake-diagnostic-functions 'python-flymake nil t))
-         ;;                                      ;; if not adding diagnostic functions to other modes just use an if
-         ;;                                      ;; ...
-         ;;                                      (t nil))))
-         )
-:custom
-(flymake-fringe-indicator-position 'right-fringe)
-;; (python-flymake-command '("ruff" "--quiet" "--stdin-filename=stdin" "-"))
-                        ;; :general
-                        ;; (general-nmap "] !" 'flymake-goto-next-error)
-                        ;; (general-nmap "[ !" 'flymake-goto-prev-error)
-)
+  (use-package flymake
+    :ensure nil
+    :hook (((python-base-mode emacs-lisp-mode) . flymake-mode)
+           ;; (lsp-managed-mode . (lambda () (cond ((derived-mode-p 'python-base-mode)
+           ;;                                       (add-hook 'flymake-diagnostic-functions 'python-flymake nil t))
+           ;;                                      ;; if not adding diagnostic functions to other modes just use an if
+           ;;                                      ;; ...
+           ;;                                      (t nil))))
+           )
+  :custom
+  (flymake-fringe-indicator-position 'right-fringe)
+  ;; (python-flymake-command '("ruff" "--quiet" "--stdin-filename=stdin" "-"))
+                          ;; :general
+                          ;; (general-nmap "] !" 'flymake-goto-next-error)
+                          ;; (general-nmap "[ !" 'flymake-goto-prev-error)
+  )
 
 (use-package hydra
   :after evil
@@ -1406,6 +1406,27 @@ be passed to EVAL-FUNC as its rest arguments"
 (use-package rainbow-delimiters
   :hook
   (emacs-lisp-mode clojure-mode))
+
+(use-package tempel
+  :custom
+  (tempel-trigger-prefix "<")
+  (tempel-path (concat user-config-directory "/templates"))
+  :hook
+  ((prog-mode text-mode) . tempel-setup-capf)
+  :preface
+  ;; Setup completion at point
+  (defun tempel-setup-capf ()
+    ;; Add the Tempel Capf to `completion-at-point-functions'.
+    ;; `tempel-expand' only triggers on exact matches. Alternatively use
+    ;; `tempel-complete' if you want to see all matches, but then you
+    ;; should also configure `tempel-trigger-prefix', such that Tempel
+    ;; does not trigger too often when you don't expect it. NOTE: We add
+    ;; `tempel-expand' *before* the main programming mode Capf, such
+    ;; that it will be tried first.
+    (setq-local completion-at-point-functions
+                (cons #'tempel-complete
+                      completion-at-point-functions)))
+  )
 
 (use-package transpose-frame
   :bind
@@ -1974,7 +1995,8 @@ be passed to EVAL-FUNC as its rest arguments"
     (kbd "<leader>wv")  'evil-window-vsplit
     (kbd "<leader>w=")  'balance-windows-area)
   (evil-define-key 'insert 'global
-    (kbd "<leader>SPC") 'execute-extended-command)
+    (kbd "<leader>SPC") 'execute-extended-command
+    (kbd "M-<tab>") 'complete-symbol)
   (evil-define-key 'visual 'global
     (kbd "<leader>SPC") 'execute-extended-command)
   ;; dired
