@@ -37,6 +37,10 @@
         (error (help-fns--autoloaded-p sym))))))
 
 (use-package emacs
+  :init
+  (electric-indent-mode -1))
+
+(use-package emacs
   :bind
   ("<leader>wo" . 'doom/window-enlargen)
   :init
@@ -147,23 +151,23 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
   (add-to-list 'recentf-exclude no-littering-var-directory)
   (add-to-list 'recentf-exclude no-littering-etc-directory))
 
-  (require 'crafted-defaults)    ; Sensible default settings for Emacs
-  ;; (require 'crafted-updates)     ; Tools to upgrade Crafted Emacs
-  (require 'crafted-completion)  ; selection framework based on `vertico`
-  (require 'crafted-ui)          ; Better UI experience (modeline etc.)
-  (require 'crafted-windows)     ; Window management configuration
-  (require 'crafted-editing)     ; Whitspace trimming, auto parens etc.
-  (require 'lc-osx)
-  (require 'crafted-evil)        ; An `evil-mode` configuration
-  (require 'crafted-org)         ; org-appear, clickable hyperlinks etc.
-  (require 'crafted-project)     ; built-in alternative to projectile
-  (require 'crafted-startup)     ; splash scren
-  (require 'crafted-workspaces)
-  ;; (require 'crafted-speedbar)    ; built-in file-tree
-  ;; (require 'crafted-screencast)  ; show current command and binding in modeline
-  ;; (require 'crafted-compile)     ; automatically compile some emacs lisp files
-  ;; (require 'crafted-python)
-  (require 'crafted-ide)
+(require 'crafted-defaults)    ; Sensible default settings for Emacs
+;; (require 'crafted-updates)     ; Tools to upgrade Crafted Emacs
+(require 'crafted-completion)  ; selection framework based on `vertico`
+(require 'crafted-ui)          ; Better UI experience (modeline etc.)
+(require 'crafted-windows)     ; Window management configuration
+(require 'crafted-editing)     ; Whitspace trimming, auto parens etc.
+(require 'lc-osx)
+(require 'crafted-evil)        ; An `evil-mode` configuration
+(require 'crafted-org)         ; org-appear, clickable hyperlinks etc.
+(require 'crafted-project)     ; built-in alternative to projectile
+(require 'crafted-startup)     ; splash scren
+(require 'crafted-workspaces)
+;; (require 'crafted-speedbar)    ; built-in file-tree
+;; (require 'crafted-screencast)  ; show current command and binding in modeline
+;; (require 'crafted-compile)     ; automatically compile some emacs lisp files
+;; (require 'crafted-python)
+(require 'crafted-ide)
 
 (use-package emacs
   :init
@@ -238,8 +242,9 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
   ;; first turn off the deeper-blue theme
   (disable-theme 'deeper-blue)
   ;; poor man's way of checking the hour when emacs is started
-  (if (< (string-to-number (format-time-string "%H")) ;; >
-         19)
+  (if (or (< (string-to-number (format-time-string "%H")) ;; >
+             19) ;; <
+          (> (string-to-number (format-time-string "%H")) 6))
       ;; light theme
       (load-theme 'modus-operandi :no-confim)
     ;; dark theme
@@ -328,175 +333,9 @@ manual."
             #'(lambda () (interactive) (kind-icon-reset-cache)))
 )
 
-(use-package consult
+(use-package centered-cursor-mode
   :bind
-  ("<leader>bb" . 'consult-buffer)
-  ("<leader>fr" . 'consult-recent-file)
-  ("<leader>rr" . 'consult-bookmark)
-  ("<leader>so" . 'consult-outline)
-  ("<leader>ss" . 'consult-line)
-  ("<leader>sS" . 'lc/search-symbol-at-point)
-  ("<leader>sp" . 'consult-ripgrep)
-  ("<leader>sd" . 'lc/consult-ripgrep-at-point)
-  ("C-p" . 'consult-yank-pop)
-  ("<insert-state>C-p" . 'consult-yank-pop)
-  ("M-p" . 'consult-toggle-preview)
-  :preface
-  (defun lc/search-symbol-at-point ()
-    "Performs a search in the current buffer for thing at point."
-    (interactive)
-    (consult-line (thing-at-point 'symbol)))
-  (defun lc/consult-ripgrep-at-point (&optional dir initial)
-    (interactive
-     (list
-      (read-directory-name "Directory:")
-      (when-let ((s (symbol-at-point)))
-        (symbol-name s))))
-    (consult-ripgrep dir initial))
-  :config
-  (consult-customize
-   consult-ripgrep consult-git-grep consult-grep
-   consult-bookmark consult-recent-file consult-xref
-   consult--source-bookmark consult--source-file-register
-   consult--source-recent-file consult--source-project-recent-file
-   ;; my/command-wrapping-consult    ;; disable auto previews inside my command
-   :preview-key '(:debounce 1 any) ;; Option 1: Delay preview
-   ;; :preview-key "M-."            ;; Option 2: Manual preview
-   ))
-
-(use-package consult-notes
-  :bind
-  ("<leader>sn" . 'consult-notes)
-  ("<leader>sN" . 'consult-notes-search-in-all-notes)
-  :config
-  (when (locate-library "denote")
-    (consult-notes-denote-mode)))
-
-(use-package corfu
-  :custom
-  (corfu-min-width 80)
-  (corfu-max-width corfu-min-width)       ; Always have the same width
-  )
-
-(use-package denote
-  :hook
-  (dired-mode . denote-dired-mode)
-  :bind
-  ("<leader>nn" . 'denote-open-or-create)
-  ("<leader>nk" . 'denote-keywords-add)
-  ("<leader>nK" . 'denote-keywords-remove)
-  ("<leader>nr" . 'denote-rename-file)
-  ("<leader>nl" . 'denote-link)
-  ("<leader>nb" . 'denote-link-backlinks)
-  ("<leader>nj" . 'lc/denote-journal)
-  ("<leader>nt" . (lambda () (interactive)
-                    (tabspaces-switch-or-create-workspace "denote")
-                    (find-file (concat denote-directory "/todo.org"))))
-  :custom
-  (denote-known-keywords '())
-  :preface
-  (defun lc/denote-org-extract-subtree ()
-    "Create new Denote note using current Org subtree. Delete the original subtree."
-    (interactive)
-    (if-let ((text (org-get-entry))
-             (heading (org-get-heading :no-tags :no-todo :no-priority :no-comment)))
-        (progn
-          (delete-region (org-entry-beginning-position) (org-entry-end-position))
-          (denote heading (org-get-tags) 'org)
-          (insert text))
-      (user-error "No subtree to extract; aborting")))
-  (defun lc/denote-journal ()
-    "Create an entry tagged 'journal' with the date as its title."
-    (interactive)
-    (denote
-     (format-time-string "%A %e %B %Y") ; format like Tuesday 14 June 2022
-     '("journal"))) ; multiple keywords are a list of strings: '("one" "two")
-  :init
-  (setq denote-directory "/Users/cambiaghiluca/OneDrive - The Boston Consulting Group, Inc/Documents/denote")
-
-  (with-eval-after-load 'org
-    (setq org-directory denote-directory)
-    (setq org-agenda-files (directory-files-recursively denote-directory "\\.org$")))
-  )
-
-(use-package denote-menu
-  :commands
-  (list-denotes)
-  :bind
-  ("<leader>nm" . (lambda () (interactive)
-                    (tabspaces-switch-or-create-workspace "denote") (list-denotes)))
-  ("<leader>nf" . 'denote-menu-filter-by-keyword)
-  ("<leader>nF" . 'denote-menu-clear-filters)
-  ("<leader>nE" . 'denote-menu-export-to-dired))
-
-(use-package dired
-  :ensure nil
-  :bind
-  ("<leader>fd" . 'dired)
-  ("<leader>fj" . 'dired-jump)
-  :hook
-  (dired-mode . dired-hide-details-mode)
-  :custom
-  (dired-listing-switches "-lah")
-  (dired-kill-when-opening-new-dired-buffer t)
-  (dired-dwim-target t)
-  :init
-  (defun lc/open-in-finder ()
-    (interactive)
-    (let ((fn (dired-get-file-for-visit)))
-      (start-process "open-directory" nil "open" "-R" fn)))
-  :config
-  (define-key dired-mode-map (kbd "<normal-state>i") nil)
-  (evil-collection-define-key 'normal 'dired-mode-map
-    "F" 'lc/open-in-finder)
-  )
-
-(use-package dired-hide-dotfiles
-  :hook
-  (dired-mode . dired-hide-dotfiles-mode)
-  :config
-  (evil-collection-define-key 'normal 'dired-mode-map
-    "H" 'dired-hide-dotfiles-mode))
-
-(use-package dired-subtree
-  :init
-  (advice-add 'dired-subtree-toggle
-              :after (lambda () (interactive)
-                       (when all-the-icons-dired-mode (revert-buffer))))
-  :config
-  (with-eval-after-load 'evil
-    (evil-collection-define-key 'normal 'dired-mode-map
-      "i" 'dired-subtree-toggle)))
-
-(use-package all-the-icons-dired
-  :if (display-graphic-p)
-  :hook
-  (dired-mode . (lambda () (interactive)
-                  (unless (file-remote-p default-directory)
-                    (all-the-icons-dired-mode)))))
-
-(use-package embark
-  :bind
-  ("C-l" . 'embark-act)
-  ;; (:keymaps 'embark-file-map
-  ;;           ;; "o" 'find-file-other-window
-  ;;           "x" 'lc/dired-open-externally)
-  )
-
-(use-package eros
-  :commands
-  (eros-eval-region eros-eval-last-sexp)
-  :hook
-  (emacs-lisp-mode org-mode lisp-interaction-mode)
-  :preface
-  (defun eros-eval-region (start end)
-    (interactive "r")
-    (eros--eval-overlay
-     (string-trim
-      (with-output-to-string
-        (eval-region start end standard-output)))
-     (max (point) (mark))))
-  )
+  ("<leader>t=" . (lambda () (interactive) (centered-cursor-mode 'toggle))))
 
 (use-package evil
   :custom
@@ -510,9 +349,11 @@ manual."
   :config
   ;; set leader key in normal state
   (evil-set-leader 'normal (kbd "SPC"))
+  (evil-set-leader 'insert (kbd "C-SPC"))
   (evil-set-leader 'visual (kbd "SPC"))
   ;; set local leader
   (evil-set-leader 'normal "," t)
+  (evil-set-leader 'insert "C-SPC m" t)
   (evil-set-leader 'visual "," t)
   ;; ESC key
   (define-key evil-insert-state-map (kbd "ESC") 'evil-normal-state)
@@ -565,6 +406,99 @@ be passed to EVAL-FUNC as its rest arguments"
   (define-key emacs-lisp-mode-map (kbd "<normal-state> gr") nil)
   (define-key evil-motion-state-map "gr" 'evil-operator-eval)
   )
+
+(use-package evil-org-mode
+  :vc (:fetcher "github" :repo "hlissner/evil-org-mode")
+  :bind
+  ([remap evil-org-org-insert-heading-respect-content-below] . +org/insert-item-below) ;; "<C-return>"
+  ([remap evil-org-org-insert-todo-heading-respect-content-below] . +org/insert-item-above) ;; "<C-S-return>"
+  (:map org-mode-map
+        ("RET" . 'org-open-at-point))
+  :hook
+  (org-mode . lc/init-evil-org-mode)
+  :preface
+  (defun lc/init-evil-org-mode ()
+    (require 'evil-org)
+    (evil-normalize-keymaps)
+    (evil-org-set-key-theme '(textobjects))
+    (require 'evil-org-agenda)
+    (evil-org-agenda-set-keys)
+    (evil-org-mode)
+    ;; disable annoying insert-new-line-and-indent behavior
+    (define-key evil-org-mode-map (kbd "<normal-state>o") nil))
+  (defun +org--insert-item (direction)
+    (let ((context (org-element-lineage
+                    (org-element-context)
+                    '(table table-row headline inlinetask item plain-list)
+                    t)))
+      (pcase (org-element-type context)
+        ;; Add a new list item (carrying over checkboxes if necessary)
+        ((or `item `plain-list)
+         ;; Position determines where org-insert-todo-heading and org-insert-item
+         ;; insert the new list item.
+         (if (eq direction 'above)
+             (org-beginning-of-item)
+           (org-end-of-item)
+           (backward-char))
+         (org-insert-item (org-element-property :checkbox context))
+         ;; Handle edge case where current item is empty and bottom of list is
+         ;; flush against a new heading.
+         (when (and (eq direction 'below)
+                    (eq (org-element-property :contents-begin context)
+                        (org-element-property :contents-end context)))
+           (org-end-of-item)
+           (org-end-of-line)))
+
+        ;; Add a new table row
+        ((or `table `table-row)
+         (pcase direction
+           ('below (save-excursion (org-table-insert-row t))
+                   (org-table-next-row))
+           ('above (save-excursion (org-shiftmetadown))
+                   (+org/table-previous-row))))
+
+        ;; Otherwise, add a new heading, carrying over any todo state, if
+        ;; necessary.
+        (_
+         (let ((level (or (org-current-level) 1)))
+           ;; I intentionally avoid `org-insert-heading' and the like because they
+           ;; impose unpredictable whitespace rules depending on the cursor
+           ;; position. It's simpler to express this command's responsibility at a
+           ;; lower level than work around all the quirks in org's API.
+           (pcase direction
+             (`below
+              (let (org-insert-heading-respect-content)
+                (goto-char (line-end-position))
+                (org-end-of-subtree)
+                (insert "\n" (make-string level ?*) " ")))
+             (`above
+              (org-back-to-heading)
+              (insert (make-string level ?*) " ")
+              (save-excursion (insert "\n"))))
+           (when-let* ((todo-keyword (org-element-property :todo-keyword context))
+                       (todo-type    (org-element-property :todo-type context)))
+             (org-todo
+              (cond ((eq todo-type 'done)
+                     ;; Doesn't make sense to create more "DONE" headings
+                     (car (+org-get-todo-keywords-for todo-keyword)))
+                    (todo-keyword)
+                    ('todo)))))))
+
+      (when (org-invisible-p)
+        (org-show-hidden-entry))
+      (when (and (bound-and-true-p evil-local-mode)
+                 (not (evil-emacs-state-p)))
+        (evil-insert 1))))
+
+  (defun +org/insert-item-below (count)
+    "Inserts a new heading, table cell or item below the current one."
+    (interactive "p")
+    (dotimes (_ count) (+org--insert-item 'below)))
+
+  (defun +org/insert-item-above (count)
+    "Inserts a new heading, table cell or item above the current one."
+    (interactive "p")
+    (dotimes (_ count) (+org--insert-item 'above))))
 
 (use-package evil-nerd-commenter
   :bind
@@ -689,190 +623,6 @@ be passed to EVAL-FUNC as its rest arguments"
             keys))))
   )
 
-  (use-package flymake
-    :ensure nil
-    :hook (((python-base-mode emacs-lisp-mode) . flymake-mode)
-           ;; (lsp-managed-mode . (lambda () (cond ((derived-mode-p 'python-base-mode)
-           ;;                                       (add-hook 'flymake-diagnostic-functions 'python-flymake nil t))
-           ;;                                      ;; if not adding diagnostic functions to other modes just use an if
-           ;;                                      ;; ...
-           ;;                                      (t nil))))
-           )
-  :custom
-  (flymake-fringe-indicator-position 'right-fringe)
-  ;; (python-flymake-command '("ruff" "--quiet" "--stdin-filename=stdin" "-"))
-                          ;; :general
-                          ;; (general-nmap "] !" 'flymake-goto-next-error)
-                          ;; (general-nmap "[ !" 'flymake-goto-prev-error)
-  )
-
-(use-package hydra
-  :after evil
-  :bind
-  ("<leader>ww" . 'evil-windows-hydra/body)
-  :config
-  (defhydra evil-windows-hydra (:hint nil
-                                      ;; :pre (smerge-mode 1)
-                                      ;; :post (smerge-auto-leave)
-                                      )
-    "
- [_h_] ⇢⇠ decrease width [_l_] ⇠⇢ increase width
- [_j_] decrease height [_k_] increase height
-│ [_q_] quit"
-    ("h" evil-window-decrease-width)
-    ("l" evil-window-increase-width)
-    ("j" evil-window-decrease-height)
-    ("k" evil-window-increase-height)
-    ("q" nil :color blue)))
-
-(use-package persistent-scratch
-  :bind
-  ("<leader>bs" . (lambda ()
-                    "Load persistent-scratch if not already loaded"
-                    (interactive)
-                    (progn
-                      (unless (boundp 'persistent-scratch-mode)
-                        (require 'persistent-scratch))
-                      (pop-to-buffer "*scratch*"))))
-  :custom
-  (persistent-scratch-autosave-interval 60)
-  :config
-  (persistent-scratch-setup-default))
-
-(use-package project
-  :ensure nil
-  :bind
-  ("<leader>pf" . 'project-find-file)
-  :init
-  (setq project-vc-extra-root-markers '("pyrpoject.toml" ".project"))
-  (setq project-vc-ignores '(".idea" ".vscode" ".direnv"))
-  )
-
-(use-package rainbow-delimiters
-  :hook
-  (emacs-lisp-mode clojure-mode))
-
-(use-package transpose-frame
-  :bind
-  ("<leader>wt" . 'transpose-frame)
-  ;; flip
-  ("<leader>wf" . 'rotate-frame))
-
-(use-package tabspaces
-  :commands
-  (tabspaces-switch-or-create-workspace)
-  :bind
-  ("<leader>pp" . 'tabspaces-open-or-create-project-and-workspace)
-  ;; add new project to list
-  ("<leader>TAB n" . 'tabspaces-project-switch-project-open-file)
-  ("<leader>TAB TAB" . 'tabspaces-switch-or-create-workspace)
-  ("<leader>TAB d" . 'tabspaces-kill-buffers-close-workspace)
-  ("<leader>TAB h" . 'tab-bar-switch-to-prev-tab)
-  ("<leader>TAB l" . 'tab-bar-switch-to-next-tab)
-  ("<leader>oc" . (lambda () (interactive)
-                         (tabspaces-switch-or-create-workspace "crafted-emacs")
-                         (find-file (concat user-config-directory "/readme.org"))))
-  :custom
-  (tabspaces-use-filtered-buffers-as-default t)
-  (tabspaces-default-tab "Default")
-  (tabspaces-remove-to-default t)
-  (tabspaces-include-buffers '("*scratch*"))
-  ;; sessions
-  (tabspaces-session t)
-  ;; (tabspaces-session-auto-restore t)
-  :preface
-  (defun lc/setup-tabspaces ()
-    "Set up tabspace at startup."
-    ;; Add *Messages* and *splash* to Tab \`Home\'
-    (tabspaces-mode 1)
-    (progn
-      (tab-bar-rename-tab "Home")
-      (when (get-buffer "*Messages*")
-        (set-frame-parameter nil
-                             'buffer-list
-                             (cons (get-buffer "*Messages*") (frame-parameter nil 'buffer-list))))))
-  :config
-  (lc/setup-tabspaces)
-  ;; Filter Buffers for Consult-Buffer
-  (with-eval-after-load 'consult
-    ;; hide full buffer list (still available with "b" prefix)
-    (consult-customize consult--source-buffer :hidden t :default nil)
-    ;; set consult-workspace buffer list
-    (defvar consult--source-workspace
-      (list :name     "Workspace Buffers"
-            :narrow   ?w
-            :history  'buffer-name-history
-            :category 'buffer
-            :state    #'consult--buffer-state
-            :default  t
-            :items    (lambda () (consult--buffer-query
-                                  :predicate #'tabspaces--local-buffer-p
-                                  :sort 'visibility
-                                  :as #'buffer-name)))
-
-      "Set workspace buffer list for consult-buffer.")
-    (add-to-list 'consult-buffer-sources 'consult--source-workspace)))
-
-(use-package emacs
-  :ensure nil
-  :custom
-  (treesit-font-lock-level 4)
-  :init
-  (require 'treesit)
-  (when (treesit-ready-p 'python)
-    (add-to-list 'major-mode-remap-alist '(python-mode . python-ts-mode))))
-
-(use-package treemacs
-  :bind
-  ("<leader>tp" . 'treemacs))
-
-(use-package savehist
-  :ensure nil
-  :init
-  (savehist-mode))
-
-(use-package vertico
-  ;; :hook
-  ;; (minibuffer-setup . 'vertico-repeat-save)
-  :bind
-  ;; ("<leader>." . 'vertico-repeat)
-  (:map vertico-map
-        ("C-k" . 'vertico-next)
-        ("C-j" . 'vertico-previous))
-  :config
-  (vertico-reverse-mode)
-  :custom
-  (vertico-resize t)
-  )
-
-(use-package vterm
-  :bind
-  (:map vterm-mode-map
-        ("<insert-state> M-l" . 'vterm-send-right)
-        ("<insert-state> M-h" . 'vterm-send-left))
-  :custom
-  (vterm-shell (executable-find "fish"))
-  (vterm-max-scrollback 10000))
-
-(use-package vterm-toggle
-  :bind
-  ("<leader>'" . 'vterm-toggle)
-  :custom
-  (vterm-toggle-scope 'project))
-
-(use-package xwwp-full
-  :vc (:fetcher "github" :repo "kchanqvq/xwwp")
-  :bind
-  (:map xwidget-webkit-mode-map
-        ("<localleader>b" .  'xwidget-webkit-back)
-        ("<localleader>j" .  'xwwp-ace-toggle)
-        ("<localleader>o" .  'xwwp-section)
-        ("<localleader>h" .  'xwwp-history-show))
-  :custom
-  (xwwp-follow-link-completion-system 'default)
-  :config
-  (require 'cl))
-
 (use-package emacs
   :bind
   ("s-b" . 'lc/gpt-complete-buffer-and-insert)
@@ -890,8 +640,6 @@ be passed to EVAL-FUNC as its rest arguments"
   (setq lc/gpt-top-p 0.1)
   (setq lc/gpt-frequency-penalty 0)
   (setq lc/gpt-presence-penalty 0)
-  (setq lc/gpt-prompts-file
-        (concat denote-directory "/20230330T145824--useful-gpt-prompts__llm_org.org"))
   (setq lc/gpt-prompt-prefix-alist '(("complete" . "Complete the following code.")))
 
   (defun lc/gpt-complete-str (api-key prompt-or-messages)
@@ -957,7 +705,7 @@ be passed to EVAL-FUNC as its rest arguments"
   (defun lc/gpt-complete-region-and-insert (start end)
     "Send the region to OpenAI and insert the result to the end of buffer. "
     (interactive "r")
-    (let ((prompt (buffer-substring-no-properties start end))
+    (let* ((prompt (buffer-substring-no-properties start end))
           (messages `[(("role"    . "user") ("content" . ,prompt))])
           (chat-model (eq lc/gpt-model 'gpt-3.5-turbo-0301)))
       (lc/gpt-complete-and-insert (if chat-model messages prompt))))
@@ -1268,7 +1016,8 @@ be passed to EVAL-FUNC as its rest arguments"
   (add-to-list 'org-structure-template-alist '("jp" . "src jupyter-python"))
   (add-to-list 'org-src-lang-modes '("jupyter-python" . python))
   (add-to-list 'org-src-lang-modes '("jupyter-R" . R))
-  (plist-put org-format-latex-options :scale 1.2)
+  (plist-put org-format-latex-options :background "Transparent")
+  (plist-put org-format-latex-options :scale 1.4)
   ;; Only fold the current tree, rather than recursively
   (add-hook 'org-tab-first-hook #'+org-cycle-only-current-subtree-h)
   )
@@ -1343,12 +1092,22 @@ be passed to EVAL-FUNC as its rest arguments"
   (:map org-mode-map
         ("<localleader>'" . 'org-edit-special)
         ("<localleader>-" . 'org-babel-demarcate-block)
-        ("<localleader>z" . 'org-babel-hide-result-toggle))
+        ("<localleader>=" . (lambda () (interactive) (jupyter-org-insert-src-block t nil)))
+        ("<localleader>," . 'org-ctrl-c-ctrl-c)
+        ("<localleader>m" . 'jupyter-org-merge-blocks)
+        ("<localleader>+" . 'jupyter-org-insert-src-block)
+        ("<localleader>?" . 'jupyter-inspect-at-point)
+        ("<localleader>z" . 'org-babel-hide-result-toggle)
+        ("<localleader>x" . 'jupyter-org-kill-block-and-results))
   (:map org-src-mode-map
         ;;FIXME
         ("<localleader>'" . 'org-edit-src-exit))
+  ;; :hook
+  ;; ((prog-mode org-mode) . (lambda () (setq indent-line-function #'(lambda () 'noindent))))
   :custom
   (org-confirm-babel-evaluate nil)
+  (org-src-ask-before-returning-to-edit-buffer nil)
+
   :config
   (org-babel-do-load-languages
    'org-babel-load-languages
@@ -1359,17 +1118,20 @@ be passed to EVAL-FUNC as its rest arguments"
   (add-hook 'org-babel-after-execute-hook 'org-display-inline-images 'append)
   )
 
-(use-package ob-async
-  :hook (org-load . (lambda () (require 'ob-async)))
-  :custom
-  (ob-async-no-async-languages-alist '("jupyter-python" "jupyter-R" "jupyter-julia")))
+;; (use-package ob-async
+;;   :hook (org-load . (lambda () (require 'ob-async)))
+;;   :custom
+;;   (ob-async-no-async-languages-alist '("jupyter-python" "jupyter-R" "jupyter-julia")))
 
 (use-package emacs
   :hook
-  (;; (org-jupyter-mode . (lambda () (visual-line-mode -1)
-   ;;                       (advice-add 'org-cycle :around #'lc/org-cycle-or-py-complete)))
+  (;; disable annoying insert-new-line-and-indent behavior
+   (org-jupyter-mode . (lambda () (setq indent-line-function 'lc/no-indent)))
+   ;; otherwise jupyter-associate-buffer will fail
+   (org-jupyter-mode . (lambda () (setq major-mode-remap-alist '())))
    (org-mode . (lambda () (when (lc/is-jupyter-org-buffer?) (org-jupyter-mode)))))
   :init
+  (defun lc/no-indent () 'noindent)
   (defun lc/is-jupyter-org-buffer? ()
     (with-current-buffer (buffer-name)
       (goto-char (point-min))
@@ -1384,101 +1146,7 @@ be passed to EVAL-FUNC as its rest arguments"
     "Minor mode which is active when an org file has the string begin_src jupyter-python
     in the first few hundred rows"
     :keymap (let ((map (make-sparse-keymap)))
-                ;; (define-key map (kbd "C-c f") 'insert-foo)
-                map)
-    )
-  )
-
-(use-package evil-org-mode
-  :vc (:fetcher "github" :repo "hlissner/evil-org-mode")
-  :bind
-  ([remap evil-org-org-insert-heading-respect-content-below] . +org/insert-item-below) ;; "<C-return>"
-  ([remap evil-org-org-insert-todo-heading-respect-content-below] . +org/insert-item-above) ;; "<C-S-return>"
-  (:map org-mode-map
-        ("RET" . 'org-open-at-point))
-  :hook
-  ((org-mode . evil-org-mode)
-   (org-mode . (lambda ()
-                 (require 'evil-org)
-                 (evil-normalize-keymaps)
-                 (evil-org-set-key-theme '(textobjects))
-                 (require 'evil-org-agenda)
-                 (evil-org-agenda-set-keys))))
-  :preface
-  (defun +org--insert-item (direction)
-    (let ((context (org-element-lineage
-                    (org-element-context)
-                    '(table table-row headline inlinetask item plain-list)
-                    t)))
-      (pcase (org-element-type context)
-        ;; Add a new list item (carrying over checkboxes if necessary)
-        ((or `item `plain-list)
-         ;; Position determines where org-insert-todo-heading and org-insert-item
-         ;; insert the new list item.
-         (if (eq direction 'above)
-             (org-beginning-of-item)
-           (org-end-of-item)
-           (backward-char))
-         (org-insert-item (org-element-property :checkbox context))
-         ;; Handle edge case where current item is empty and bottom of list is
-         ;; flush against a new heading.
-         (when (and (eq direction 'below)
-                    (eq (org-element-property :contents-begin context)
-                        (org-element-property :contents-end context)))
-           (org-end-of-item)
-           (org-end-of-line)))
-
-        ;; Add a new table row
-        ((or `table `table-row)
-         (pcase direction
-           ('below (save-excursion (org-table-insert-row t))
-                   (org-table-next-row))
-           ('above (save-excursion (org-shiftmetadown))
-                   (+org/table-previous-row))))
-
-        ;; Otherwise, add a new heading, carrying over any todo state, if
-        ;; necessary.
-        (_
-         (let ((level (or (org-current-level) 1)))
-           ;; I intentionally avoid `org-insert-heading' and the like because they
-           ;; impose unpredictable whitespace rules depending on the cursor
-           ;; position. It's simpler to express this command's responsibility at a
-           ;; lower level than work around all the quirks in org's API.
-           (pcase direction
-             (`below
-              (let (org-insert-heading-respect-content)
-                (goto-char (line-end-position))
-                (org-end-of-subtree)
-                (insert "\n" (make-string level ?*) " ")))
-             (`above
-              (org-back-to-heading)
-              (insert (make-string level ?*) " ")
-              (save-excursion (insert "\n"))))
-           (when-let* ((todo-keyword (org-element-property :todo-keyword context))
-                       (todo-type    (org-element-property :todo-type context)))
-             (org-todo
-              (cond ((eq todo-type 'done)
-                     ;; Doesn't make sense to create more "DONE" headings
-                     (car (+org-get-todo-keywords-for todo-keyword)))
-                    (todo-keyword)
-                    ('todo)))))))
-
-      (when (org-invisible-p)
-        (org-show-hidden-entry))
-      (when (and (bound-and-true-p evil-local-mode)
-                 (not (evil-emacs-state-p)))
-        (evil-insert 1))))
-
-  (defun +org/insert-item-below (count)
-    "Inserts a new heading, table cell or item below the current one."
-    (interactive "p")
-    (dotimes (_ count) (+org--insert-item 'below)))
-
-  (defun +org/insert-item-above (count)
-    "Inserts a new heading, table cell or item above the current one."
-    (interactive "p")
-    (dotimes (_ count) (+org--insert-item 'above)))
-  )
+              map)))
 
 (use-package org-modern
   :hook
@@ -1497,6 +1165,386 @@ be passed to EVAL-FUNC as its rest arguments"
         '((light . modus-operandi)
           (dark . modus-operandi)))
   (setq org-export-backends '(html)))
+
+(use-package consult
+  :bind
+  ("<leader>bb" . 'consult-buffer)
+  ("<leader>fr" . 'consult-recent-file)
+  ("<leader>rr" . 'consult-bookmark)
+  ("<leader>so" . 'consult-outline)
+  ("<leader>ss" . 'consult-line)
+  ("<leader>sS" . 'lc/search-symbol-at-point)
+  ("<leader>sp" . 'consult-ripgrep)
+  ("<leader>sd" . 'lc/consult-ripgrep-at-point)
+  ("C-p" . 'consult-yank-pop)
+  ("<insert-state>C-p" . 'consult-yank-pop)
+  ("M-p" . 'consult-toggle-preview)
+  :preface
+  (defun lc/search-symbol-at-point ()
+    "Performs a search in the current buffer for thing at point."
+    (interactive)
+    (consult-line (thing-at-point 'symbol)))
+  (defun lc/consult-ripgrep-at-point (&optional dir initial)
+    (interactive
+     (list
+      (read-directory-name "Directory:")
+      (when-let ((s (symbol-at-point)))
+        (symbol-name s))))
+    (consult-ripgrep dir initial))
+  :config
+  (consult-customize
+   consult-ripgrep consult-git-grep consult-grep
+   consult-bookmark consult-recent-file consult-xref
+   consult--source-bookmark consult--source-file-register
+   consult--source-recent-file consult--source-project-recent-file
+   ;; my/command-wrapping-consult    ;; disable auto previews inside my command
+   :preview-key '(:debounce 1 any) ;; Option 1: Delay preview
+   ;; :preview-key "M-."            ;; Option 2: Manual preview
+   ))
+
+(use-package consult-notes
+  :bind
+  ("<leader>sn" . 'consult-notes)
+  ("<leader>sN" . 'consult-notes-search-in-all-notes)
+  :config
+  (when (locate-library "denote")
+    (consult-notes-denote-mode)))
+
+(use-package corfu
+  :custom
+  (corfu-min-width 80)
+  ;; Always have the same width
+  (corfu-max-width corfu-min-width)
+  :config
+  (corfu-popupinfo-mode -1))
+
+(use-package denote
+  :hook
+  (dired-mode . denote-dired-mode)
+  :bind
+  ("<leader>nn" . 'denote-open-or-create)
+  ("<leader>nk" . 'denote-keywords-add)
+  ("<leader>nK" . 'denote-keywords-remove)
+  ("<leader>nr" . 'denote-rename-file)
+  ("<leader>nl" . 'denote-link)
+  ("<leader>nb" . 'denote-link-backlinks)
+  ("<leader>nj" . 'lc/denote-journal)
+  ("<leader>nt" . (lambda () (interactive)
+                    (tabspaces-switch-or-create-workspace "denote")
+                    (find-file (concat denote-directory "/todo.org"))))
+  :custom
+  (denote-known-keywords '())
+  (lc/gpt-prompts-file (concat denote-directory "/20230330T145824--useful-gpt-prompts__llm_org.org"))
+  :preface
+  (defun lc/denote-org-extract-subtree ()
+    "Create new Denote note using current Org subtree. Delete the original subtree."
+    (interactive)
+    (if-let ((text (org-get-entry))
+             (heading (org-get-heading :no-tags :no-todo :no-priority :no-comment)))
+        (progn
+          (delete-region (org-entry-beginning-position) (org-entry-end-position))
+          (denote heading (org-get-tags) 'org)
+          (insert text))
+      (user-error "No subtree to extract; aborting")))
+  (defun lc/denote-journal ()
+    "Create an entry tagged 'journal' with the date as its title."
+    (interactive)
+    (denote
+     (format-time-string "%A %e %B %Y") ; format like Tuesday 14 June 2022
+     '("journal"))) ; multiple keywords are a list of strings: '("one" "two")
+  :init
+  (setq denote-directory "/Users/cambiaghiluca/OneDrive - The Boston Consulting Group, Inc/Documents/denote")
+
+  (with-eval-after-load 'org
+    (setq org-directory denote-directory)
+    (setq org-agenda-files (directory-files-recursively denote-directory "\\.org$")))
+  )
+
+(use-package denote-menu
+  :commands
+  (list-denotes)
+  :bind
+  ("<leader>nm" . (lambda () (interactive)
+                    (tabspaces-switch-or-create-workspace "denote") (list-denotes)))
+  ("<leader>nf" . 'denote-menu-filter-by-keyword)
+  ("<leader>nF" . 'denote-menu-clear-filters)
+  ("<leader>nE" . 'denote-menu-export-to-dired))
+
+(use-package dired
+  :ensure nil
+  :bind
+  ("<leader>fd" . 'dired)
+  ("<leader>fj" . 'dired-jump)
+  :hook
+  (dired-mode . dired-hide-details-mode)
+  :custom
+  (dired-listing-switches "-lah")
+  (dired-kill-when-opening-new-dired-buffer t)
+  (dired-dwim-target t)
+  :init
+  (defun lc/open-in-finder ()
+    (interactive)
+    (let ((fn (dired-get-file-for-visit)))
+      (start-process "open-directory" nil "open" "-R" fn)))
+  (defun lc/dired-open-externally ()
+    (interactive)
+    (let ((fn (dired-get-file-for-visit)))
+      (start-process "open-external" nil "open" fn)))
+  :config
+  (define-key dired-mode-map (kbd "<normal-state>i") nil)
+  (define-key dired-mode-map (kbd "<normal-state>X") nil)
+  (evil-collection-define-key 'normal 'dired-mode-map
+    "X" 'lc/dired-open-externally
+    "F" 'lc/open-in-finder))
+
+(use-package dired-hide-dotfiles
+  :hook
+  (dired-mode . dired-hide-dotfiles-mode)
+  :config
+  (evil-collection-define-key 'normal 'dired-mode-map
+    "H" 'dired-hide-dotfiles-mode))
+
+(use-package dired-subtree
+  :init
+  (advice-add 'dired-subtree-toggle
+              :after (lambda () (interactive)
+                       (when all-the-icons-dired-mode (revert-buffer))))
+  :config
+  (with-eval-after-load 'evil
+    (evil-collection-define-key 'normal 'dired-mode-map
+      "i" 'dired-subtree-toggle)))
+
+(use-package all-the-icons-dired
+  :if (display-graphic-p)
+  :hook
+  (dired-mode . (lambda () (interactive)
+                  (unless (file-remote-p default-directory)
+                    (all-the-icons-dired-mode)))))
+
+(use-package embark
+  :bind
+  ("C-l" . 'embark-act)
+  ;; (:keymaps 'embark-file-map
+  ;;           ;; "o" 'find-file-other-window
+  ;;           "x" 'lc/dired-open-externally)
+  )
+
+(use-package eros
+  :commands
+  (eros-eval-region eros-eval-last-sexp)
+  :hook
+  (emacs-lisp-mode org-mode lisp-interaction-mode)
+  :preface
+  (defun eros-eval-region (start end)
+    (interactive "r")
+    (eros--eval-overlay
+     (string-trim
+      (with-output-to-string
+        (eval-region start end standard-output)))
+     (max (point) (mark))))
+  )
+
+(use-package flymake
+  :ensure nil
+  :hook (((python-base-mode emacs-lisp-mode) . flymake-mode)
+         ;; (lsp-managed-mode . (lambda () (cond ((derived-mode-p 'python-base-mode)
+         ;;                                       (add-hook 'flymake-diagnostic-functions 'python-flymake nil t))
+         ;;                                      ;; if not adding diagnostic functions to other modes just use an if
+         ;;                                      ;; ...
+         ;;                                      (t nil))))
+         )
+:custom
+(flymake-fringe-indicator-position 'right-fringe)
+;; (python-flymake-command '("ruff" "--quiet" "--stdin-filename=stdin" "-"))
+                        ;; :general
+                        ;; (general-nmap "] !" 'flymake-goto-next-error)
+                        ;; (general-nmap "[ !" 'flymake-goto-prev-error)
+)
+
+(use-package hydra
+  :after evil
+  :bind
+  ("<leader>ww" . 'evil-windows-hydra/body)
+  :config
+  (defhydra evil-windows-hydra (:hint nil
+                                      ;; :pre (smerge-mode 1)
+                                      ;; :post (smerge-auto-leave)
+                                      )
+    "
+ [_h_] ⇢⇠ decrease width [_l_] ⇠⇢ increase width
+ [_j_] decrease height [_k_] increase height
+│ [_q_] quit"
+    ("h" evil-window-decrease-width)
+    ("l" evil-window-increase-width)
+    ("j" evil-window-decrease-height)
+    ("k" evil-window-increase-height)
+    ("q" nil :color blue)))
+
+(use-package persistent-scratch
+  :bind
+  ("<leader>bs" . (lambda ()
+                    "Load persistent-scratch if not already loaded"
+                    (interactive)
+                    (progn
+                      (unless (boundp 'persistent-scratch-mode)
+                        (require 'persistent-scratch))
+                      (pop-to-buffer "*scratch*"))))
+  :custom
+  (persistent-scratch-autosave-interval 60)
+  :config
+  (persistent-scratch-setup-default))
+
+(use-package project
+  :ensure nil
+  :bind
+  ("<leader>pf" . 'project-find-file)
+  :init
+  (setq project-vc-extra-root-markers '("pyrpoject.toml" ".project"))
+  (setq project-vc-ignores '(".idea" ".vscode" ".direnv"))
+  )
+
+(use-package rainbow-delimiters
+  :hook
+  (emacs-lisp-mode clojure-mode))
+
+(use-package transpose-frame
+  :bind
+  ("<leader>wt" . 'transpose-frame)
+  ;; flip
+  ("<leader>wf" . 'rotate-frame))
+
+(use-package tabspaces
+  :commands
+  (tabspaces-switch-or-create-workspace)
+  :bind
+  ("<leader>pp" . 'tabspaces-open-or-create-project-and-workspace)
+  ;; add new project to list
+  ("<leader>TAB n" . 'tabspaces-project-switch-project-open-file)
+  ("<leader>TAB TAB" . 'tabspaces-switch-or-create-workspace)
+  ("<leader>TAB d" . 'tabspaces-kill-buffers-close-workspace)
+  ("<leader>TAB h" . 'tab-bar-switch-to-prev-tab)
+  ("<leader>TAB l" . 'tab-bar-switch-to-next-tab)
+  ("<leader>oc" . (lambda () (interactive)
+                         (tabspaces-switch-or-create-workspace "crafted-emacs")
+                         (find-file (concat user-config-directory "/readme.org"))))
+  :custom
+  (tabspaces-use-filtered-buffers-as-default t)
+  (tabspaces-default-tab "Default")
+  (tabspaces-remove-to-default t)
+  (tabspaces-include-buffers '("*scratch*"))
+  ;; sessions
+  (tabspaces-session t)
+  ;; (tabspaces-session-auto-restore t)
+  :preface
+  (defun lc/setup-tabspaces ()
+    "Set up tabspace at startup."
+    ;; Add *Messages* and *splash* to Tab \`Home\'
+    (tabspaces-mode 1)
+    (progn
+      (tab-bar-rename-tab "Home")
+      (when (get-buffer "*Messages*")
+        (set-frame-parameter nil
+                             'buffer-list
+                             (cons (get-buffer "*Messages*") (frame-parameter nil 'buffer-list))))))
+  :config
+  (lc/setup-tabspaces)
+  ;; Filter Buffers for Consult-Buffer
+  (with-eval-after-load 'consult
+    ;; hide full buffer list (still available with "b" prefix)
+    (consult-customize consult--source-buffer :hidden t :default nil)
+    ;; set consult-workspace buffer list
+    (defvar consult--source-workspace
+      (list :name     "Workspace Buffers"
+            :narrow   ?w
+            :history  'buffer-name-history
+            :category 'buffer
+            :state    #'consult--buffer-state
+            :default  t
+            :items    (lambda () (consult--buffer-query
+                                  :predicate #'tabspaces--local-buffer-p
+                                  :sort 'visibility
+                                  :as #'buffer-name)))
+
+      "Set workspace buffer list for consult-buffer.")
+    (add-to-list 'consult-buffer-sources 'consult--source-workspace)))
+
+(use-package emacs
+  :ensure nil
+  :custom
+  (treesit-font-lock-level 4)
+  :init
+  (require 'treesit)
+  (when (treesit-ready-p 'python)
+    (add-to-list 'major-mode-remap-alist '(python-mode . python-ts-mode))))
+
+(use-package treemacs
+  :bind
+  ("<leader>tp" . 'treemacs)
+  (:map evil-treemacs-state-map
+        ("SPC" . evil-send-leader))
+  :config
+  (use-package treemacs-evil
+    :demand t)
+  (use-package treemacs-tab-bar
+    :demand t
+    :config
+    (treemacs-set-scope-type 'Tabs))
+  (treemacs-follow-mode t)
+  (treemacs-filewatch-mode t)
+  (treemacs-fringe-indicator-mode 'always)
+  (when treemacs-python-executable
+    (treemacs-git-commit-diff-mode t))
+
+
+  )
+
+(use-package savehist
+  :ensure nil
+  :init
+  (savehist-mode))
+
+(use-package vertico
+  ;; :hook
+  ;; (minibuffer-setup . 'vertico-repeat-save)
+  :bind
+  ;; ("<leader>." . 'vertico-repeat)
+  (:map vertico-map
+        ("C-k" . 'vertico-next)
+        ("C-j" . 'vertico-previous))
+  :config
+  (vertico-reverse-mode)
+  :custom
+  (vertico-resize t)
+  )
+
+(use-package vterm
+  :bind
+  (:map vterm-mode-map
+        ("<insert-state> M-l" . 'vterm-send-right)
+        ("<insert-state> M-h" . 'vterm-send-left))
+  :custom
+  ;; (vterm-shell (executable-find "fish"))
+  (vterm-shell (executable-find "zsh"))
+  (vterm-max-scrollback 10000))
+
+(use-package vterm-toggle
+  :bind
+  ("<leader>'" . 'vterm-toggle)
+  :custom
+  (vterm-toggle-scope 'project))
+
+(use-package xwwp-full
+  :vc (:fetcher "github" :repo "kchanqvq/xwwp")
+  :bind
+  (:map xwidget-webkit-mode-map
+        ("<localleader>b" .  'xwidget-webkit-back)
+        ("<localleader>j" .  'xwwp-ace-toggle)
+        ("<localleader>o" .  'xwwp-section)
+        ("<localleader>h" .  'xwwp-history-show))
+  :custom
+  (xwwp-follow-link-completion-system 'default)
+  :config
+  (require 'cl))
 
 (use-package lsp-mode
   :commands
@@ -1551,6 +1599,11 @@ be passed to EVAL-FUNC as its rest arguments"
 
 (use-package nix-mode
 :mode "\\.nix\\'")
+
+(use-package python-mode
+  :ensure nil
+  :init
+  (setq python-indent-guess-indent-offset nil))
 
 (use-package csv-mode
   :hook (csv-mode . lc/init-csv-mode)
@@ -1848,33 +1901,20 @@ be passed to EVAL-FUNC as its rest arguments"
                '("\\*jupyter-output\\*\\|\\*jupyter-error\\*"
                  (cons 'display-buffer-no-window
                        '((allow-no-window . t)))))
+  (require 'python)
   (with-eval-after-load 'treesit
     (evil-define-key 'normal 'python-ts-mode-map
       (kbd "<localleader>J") 'lc/jupyter-repl)))
 
-(use-package jupyter
-  :vc (:fetcher "github" :repo "nnicandro/emacs-jupyter")
+(use-package scimax-jupyter
+  :load-path "~/git/scimax"
   :bind
-  (:map org-mode-map
-        ;; insert block below
-        ("<localleader>=" . (lambda () (interactive) (jupyter-org-insert-src-block t nil)))
-        ("<localleader>," . 'org-ctrl-c-ctrl-c)
-        ("<localleader>m" . 'jupyter-org-merge-blocks)
-        ("<localleader>+" . 'jupyter-org-insert-src-block)
-        ("<localleader>?" . 'jupyter-inspect-at-point)
-        ("<localleader>x" . 'jupyter-org-kill-block-and-results))
+  (:map org-jupyter-mode-map
+        ("<localleader>." . 'scimax-jupyter-org-hydra/body))
   :hook
-  (;; (jupyter-org-interaction-mode . (lambda () (lc/add-local-electric-pairs '((?' . ?')))))
-   (jupyter-repl-persistent-mode . (lambda ()  ;; we activate org-interaction-mode ourselves
-                                     (when (derived-mode-p 'org-mode)
-                                       (setq-local evil-lookup-func #'jupyter-inspect-at-point)
-                                       (jupyter-org-interaction-mode))))
-   (envrc-mode . lc/load-ob-jupyter))
+  (envrc-mode . lc/init-jupyter)
   :preface
-  (defun lc/org-load-jupyter ()
-    (org-babel-do-load-languages 'org-babel-load-languages
-                                 (append org-babel-load-languages '((jupyter . t)))))
-  (defun lc/load-ob-jupyter ()
+  (defun lc/init-jupyter ()
     (interactive)
     ;; only try to load in org-mode
     (when (derived-mode-p 'org-mode)
@@ -1882,43 +1922,9 @@ be passed to EVAL-FUNC as its rest arguments"
       (unless (member '(jupyter . t) org-babel-load-languages)
         ;; only load if jupyter is available
         (when (executable-find "jupyter")
-          (lc/org-load-jupyter)))))
-  :config
-  (with-eval-after-load 'org
-    (setq org-babel-default-header-args:jupyter-python '((:async . "yes") (:pandoc t) (:kernel . "python3")))
-    (setq org-babel-default-header-args:jupyter-R '((:pandoc t) (:async . "yes") (:kernel . "ir"))))
-  (cl-defmethod jupyter-org--insert-result (_req context result)
-    (let ((str
-           (org-element-interpret-data
-            (jupyter-org--wrap-result-maybe
-             context (if (jupyter-org--stream-result-p result)
-                         (thread-last result
-                                      jupyter-org-strip-last-newline
-                                      jupyter-org-scalar)
-                       result)))))
-      (if (< (length str) 100000)  ;; >
-          (insert str)
-        (insert (format ": Result was too long! Length was %d" (length str)))))
-    (when (/= (point) (line-beginning-position))
-      ;; Org objects such as file links do not have a newline added when
-      ;; converting to their string representation by
-      ;; `org-element-interpret-data' so insert one in these cases.
-      (insert "\n")))
-  (defun jupyter-make-ssh-tunnel (lport rport server remoteip)
-    (or remoteip (setq remoteip "127.0.0.1"))
-    (start-process
-     "jupyter-ssh-tunnel" nil
-     "ssh"
-     ;; Run in background
-     ;; "-f"
-     ;; Wait until the tunnel is open
-     "-o ExitOnForwardFailure=yes"
-     ;; Local forward
-     "-L" (format "127.0.0.1:%d:%s:%d" lport remoteip rport)
-     server
-     ;; Close the tunnel if no other connections are made within 60
-     ;; seconds
-     "sleep 60")))
+          (require 'scimax-jupyter)
+          (setq-local completion-at-point-functions '(jupyter-completion-at-point t)))
+        ))))
 
 (use-package evil
   :config
@@ -1967,6 +1973,10 @@ be passed to EVAL-FUNC as its rest arguments"
     (kbd "<leader>wu")  'winner-undo
     (kbd "<leader>wv")  'evil-window-vsplit
     (kbd "<leader>w=")  'balance-windows-area)
+  (evil-define-key 'insert 'global
+    (kbd "<leader>SPC") 'execute-extended-command)
+  (evil-define-key 'visual 'global
+    (kbd "<leader>SPC") 'execute-extended-command)
   ;; dired
   (evil-define-key 'normal dired-mode-map
     (kbd "SPC") 'evil-send-leader
