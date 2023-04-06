@@ -242,9 +242,10 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
   ;; first turn off the deeper-blue theme
   (disable-theme 'deeper-blue)
   ;; poor man's way of checking the hour when emacs is started
-  (if (or (< (string-to-number (format-time-string "%H")) ;; >
-             19) ;; <
-          (> (string-to-number (format-time-string "%H")) 6))
+  (if (and (< (string-to-number (format-time-string "%H")) ;; >
+              19)
+           (not (< (string-to-number (format-time-string "%H")) 6 ;; >
+                   )))
       ;; light theme
       (load-theme 'modus-operandi :no-confim)
     ;; dark theme
@@ -353,7 +354,7 @@ manual."
   (evil-set-leader 'visual (kbd "SPC"))
   ;; set local leader
   (evil-set-leader 'normal "," t)
-  (evil-set-leader 'insert "C-SPC m" t)
+  (evil-set-leader 'insert (kbd "C-,") t)
   (evil-set-leader 'visual "," t)
   ;; ESC key
   (define-key evil-insert-state-map (kbd "ESC") 'evil-normal-state)
@@ -376,7 +377,7 @@ manual."
       (org-mode eros-eval-region)
       ;; (scheme-mode geiser-eval-region)
       (clojure-mode cider-eval-region)
-      ;; (jupyter-repl-interaction-mode jupyter-eval-line-or-region)
+      (jupyter-repl-interaction-mode jupyter-eval-line-or-region)
       (python-ts-mode jupyter-eval-region)
       ;; (python-mode python-shell-send-region) ;; when executing in org-src-edit mode
       )
@@ -425,7 +426,8 @@ be passed to EVAL-FUNC as its rest arguments"
     (evil-org-agenda-set-keys)
     (evil-org-mode)
     ;; disable annoying insert-new-line-and-indent behavior
-    (define-key evil-org-mode-map (kbd "<normal-state>o") nil))
+    ;; (define-key evil-org-mode-map (kbd "<normal-state>o") nil)
+    )
   (defun +org--insert-item (direction)
     (let ((context (org-element-lineage
                     (org-element-context)
@@ -846,7 +848,7 @@ be passed to EVAL-FUNC as its rest arguments"
   :bind
   ("C-TAB" . 'copilot-accept-completion-by-word)
   ("C-<tab>" . 'copilot-accept-completion-by-word)
-  ("s-t" . (lambda () (interactive)
+  ("<leader>tc" . (lambda () (interactive)
              (setq lc/copilot-enabled (if lc/copilot-enabled nil t))
              (message (if lc/copilot-enabled "Enabled copilot-mode" "Disabled copilot-mode"))
              (lc/toggle-copilot-mode)))
@@ -1011,11 +1013,7 @@ be passed to EVAL-FUNC as its rest arguments"
             (org-cycle-internal-local)
             t)))))
   :config
-  (add-to-list 'org-structure-template-alist '("sh" . "src shell"))
-  (add-to-list 'org-structure-template-alist '("el" . "src emacs-lisp"))
-  (add-to-list 'org-structure-template-alist '("jp" . "src jupyter-python"))
-  (add-to-list 'org-src-lang-modes '("jupyter-python" . python))
-  (add-to-list 'org-src-lang-modes '("jupyter-R" . R))
+  ;; (add-to-list 'org-src-lang-modes '("jupyter-python" . python-ts))
   (plist-put org-format-latex-options :background "Transparent")
   (plist-put org-format-latex-options :scale 1.4)
   ;; Only fold the current tree, rather than recursively
@@ -1090,24 +1088,18 @@ be passed to EVAL-FUNC as its rest arguments"
 (use-package org
   :bind
   (:map org-mode-map
-        ("<localleader>'" . 'org-edit-special)
-        ("<localleader>-" . 'org-babel-demarcate-block)
-        ("<localleader>=" . (lambda () (interactive) (jupyter-org-insert-src-block t nil)))
+        ("<localleader>." . 'org-edit-special)
         ("<localleader>," . 'org-ctrl-c-ctrl-c)
-        ("<localleader>m" . 'jupyter-org-merge-blocks)
-        ("<localleader>+" . 'jupyter-org-insert-src-block)
-        ("<localleader>?" . 'jupyter-inspect-at-point)
-        ("<localleader>z" . 'org-babel-hide-result-toggle)
-        ("<localleader>x" . 'jupyter-org-kill-block-and-results))
+        ("<localleader>-" . 'org-babel-demarcate-block)
+        ("<localleader>z" . 'org-babel-hide-result-toggle))
   (:map org-src-mode-map
-        ;;FIXME
-        ("<localleader>'" . 'org-edit-src-exit))
+        ("<localleader>." . 'org-edit-src-exit))
   ;; :hook
   ;; ((prog-mode org-mode) . (lambda () (setq indent-line-function #'(lambda () 'noindent))))
   :custom
   (org-confirm-babel-evaluate nil)
   (org-src-ask-before-returning-to-edit-buffer nil)
-
+  (org-src-window-setup 'current-window)
   :config
   (org-babel-do-load-languages
    'org-babel-load-languages
@@ -1123,38 +1115,13 @@ be passed to EVAL-FUNC as its rest arguments"
 ;;   :custom
 ;;   (ob-async-no-async-languages-alist '("jupyter-python" "jupyter-R" "jupyter-julia")))
 
-(use-package emacs
-  :hook
-  (;; disable annoying insert-new-line-and-indent behavior
-   (org-jupyter-mode . (lambda () (setq indent-line-function 'lc/no-indent)))
-   ;; otherwise jupyter-associate-buffer will fail
-   (org-jupyter-mode . (lambda () (setq major-mode-remap-alist '())))
-   (org-mode . (lambda () (when (lc/is-jupyter-org-buffer?) (org-jupyter-mode)))))
-  :init
-  (defun lc/no-indent () 'noindent)
-  (defun lc/is-jupyter-org-buffer? ()
-    (with-current-buffer (buffer-name)
-      (goto-char (point-min))
-      (re-search-forward "begin_src jupyter-" 10000 t)))
-  (defun lc/org-cycle-or-py-complete (orig-fun &rest args)
-    "If in a jupyter-python code block, call py-indent-or-complete, otherwise use org-cycle"
-    (if (and (org-in-src-block-p)
-             (eq (intern (org-element-property :language (org-element-at-point))) 'jupyter-python))
-        (lc/py-indent-or-complete)
-      (apply orig-fun args)))
-  (define-minor-mode org-jupyter-mode
-    "Minor mode which is active when an org file has the string begin_src jupyter-python
-    in the first few hundred rows"
-    :keymap (let ((map (make-sparse-keymap)))
-              map)))
-
 (use-package org-modern
   :hook
   (org-mode . org-modern-mode))
 
 (use-package org-html-themify
   :vc (:fetcher "github" :repo "DogLooksGood/org-html-themify")
-  :hook (org-mode . org-html-themify-mode)
+  ;; :hook (org-mode . org-html-themify-mode)
   :config
   (use-package hexrgb
     :vc (:fetcher "github" :repo "emacsmirror/hexrgb")
@@ -1410,22 +1377,17 @@ be passed to EVAL-FUNC as its rest arguments"
 (use-package tempel
   :custom
   (tempel-trigger-prefix "<")
-  (tempel-path (concat user-config-directory "/templates"))
+  (tempel-path (concat user-config-directory "/templates.eld"))
   :hook
-  ((prog-mode text-mode) . tempel-setup-capf)
+  ((prog-mode org-mode) . tempel-setup-capf)
   :preface
   ;; Setup completion at point
   (defun tempel-setup-capf ()
-    ;; Add the Tempel Capf to `completion-at-point-functions'.
-    ;; `tempel-expand' only triggers on exact matches. Alternatively use
-    ;; `tempel-complete' if you want to see all matches, but then you
-    ;; should also configure `tempel-trigger-prefix', such that Tempel
-    ;; does not trigger too often when you don't expect it. NOTE: We add
-    ;; `tempel-expand' *before* the main programming mode Capf, such
-    ;; that it will be tried first.
     (setq-local completion-at-point-functions
                 (cons #'tempel-complete
                       completion-at-point-functions)))
+  ;; :init
+  ;; (tempel-key "C-c t f" fun emacs-lisp-mode-map)
   )
 
 (use-package transpose-frame
@@ -1492,11 +1454,20 @@ be passed to EVAL-FUNC as its rest arguments"
 (use-package emacs
   :ensure nil
   :custom
-  (treesit-font-lock-level 4)
+  (treesit-font-lock-level 3)
+  :hook
+  (lsp-mode . (lambda ()
+                (when (treesit-ready-p 'python)
+                  (unless (member '(python-mode . python-ts-mode) major-mode-remap-alist)
+                    (add-to-list 'major-mode-remap-alist '(python-mode . python-ts-mode))))))
+  :preface
+  (defun lc/init-py-ts-mode ()
+    (when (treesit-ready-p 'python)
+      (add-to-list 'major-mode-remap-alist '(python-mode . python-ts-mode))))
   :init
   (require 'treesit)
-  (when (treesit-ready-p 'python)
-    (add-to-list 'major-mode-remap-alist '(python-mode . python-ts-mode))))
+  (advice-add 'tab-switch :after (lambda (_) (interactive) (lc/init-py-ts-mode)))
+  )
 
 (use-package treemacs
   :bind
@@ -1572,7 +1543,7 @@ be passed to EVAL-FUNC as its rest arguments"
   (lsp-deferred)
   :hook
   (lsp-mode . (lambda ()
-                 (setq-local evil-lookup-func #'lsp-describe-thing-at-point)))
+                (setq-local evil-lookup-func #'lsp-describe-thing-at-point)))
   ;; :general
   ;; (lc/local-leader-keys
   ;;   :states 'normal
@@ -1747,26 +1718,13 @@ be passed to EVAL-FUNC as its rest arguments"
         ("<localleader>ds" . (lambda () (interactive) (dap-debug dap-script-args))))
   (:map dap-ui-repl-mode-map
         ("<insert-state><up>" . 'comint-previous-input))
-  :init
-  (setq lc/dap-temp-dataframe-buffer  "*inspect-df*")
-  (setq lc/dap-temp-dataframe-path "~/tmp-inspect-df.csv")
+  :preface
   (defun lc/dap-inspect-df (dataframe)
     "Save the df to csv and open the file with csv-mode"
     (interactive (list (read-from-minibuffer "DataFrame: " (evil-find-symbol nil))))
     (dap-eval (format  "%s.to_csv('%s', index=False)" dataframe lc/dap-temp-dataframe-path))
     (sleep-for 1)
-    (find-file-other-window lc/dap-temp-dataframe-path)
-    )
-  ;; prevent minibuffer prompt about reloading from disk
-  (setq revert-without-query '("~/tmp-inspect-df.csv"))
-  ;; (setq dap-auto-configure-features '(locals repl))
-  (setq dap-auto-configure-features '(sessions repl))
-  (setq dap-python-debugger 'debugpy)
-  ;; show stdout
-  (setq dap-auto-show-output t)
-  (setq dap-output-window-min-height 10)
-  (setq dap-output-window-max-height 200)
-  (setq dap-overlays-use-overlays nil)
+    (find-file-other-window lc/dap-temp-dataframe-path))
   ;; hide stdout window  when done
   (defun lc/hide-debug-windows (session)
     "Hide debug windows when all debug sessions are dead."
@@ -1806,6 +1764,19 @@ be passed to EVAL-FUNC as its rest arguments"
                 (bla (car (last splits))))
       (when (string-equal bla "pytest.py")
         (switch-to-buffer (dap--debug-session-output-buffer (dap--cur-session-or-die))))))
+  :init
+  (setq lc/dap-temp-dataframe-buffer  "*inspect-df*")
+  (setq lc/dap-temp-dataframe-path "~/tmp-inspect-df.csv")
+  ;; prevent minibuffer prompt about reloading from disk
+  (setq revert-without-query '("~/tmp-inspect-df.csv"))
+  ;; (setq dap-auto-configure-features '(locals repl))
+  (setq dap-auto-configure-features '(sessions repl))
+  (setq dap-python-debugger 'debugpy)
+  ;; show stdout
+  (setq dap-auto-show-output t)
+  (setq dap-output-window-min-height 10)
+  (setq dap-output-window-max-height 200)
+  (setq dap-overlays-use-overlays nil)
   :config
   ;; configure windows
   (require 'dap-ui)
@@ -1875,10 +1846,19 @@ be passed to EVAL-FUNC as its rest arguments"
         ("<localleader>kr" . 'jupyter-repl-restart-kernel)
         ;; ("<localleader>J" . 'lc/jupyter-repl)
         )
+  (:map org-mode-map
+        ("<localleader>=" . (lambda () (interactive) (jupyter-org-insert-src-block t nil)))
+        ("<localleader>m" . 'jupyter-org-merge-blocks)
+        ("<localleader>+" . 'jupyter-org-insert-src-block)
+        ("<localleader>?" . 'jupyter-inspect-at-point)
+        ("<localleader>c" . 'jupyter-org-clear-all-results)
+        ("<localleader>x" . 'jupyter-org-kill-block-and-results))
+  :hook
+  (jupyter-repl-persistent-mode .   (lambda () (setq-local evil-lookup-func #'jupyter-inspect-at-point)))
   :custom
   (jupyter-repl-prompt-margin-width 4)
   (jupyter-eval-use-overlays nil)
-  :init
+  :preface
   (defun jupyter-command-venv (&rest args)
     "This overrides jupyter-command to use the virtualenv's jupyter"
     (let ((jupyter-executable (executable-find "jupyter")))
@@ -1907,34 +1887,88 @@ be passed to EVAL-FUNC as its rest arguments"
     (if jupyter-eval-use-overlays
         (setq jupyter-eval-use-overlays nil)
       (setq jupyter-eval-use-overlays t)))
-  (advice-add 'jupyter-command :override #'jupyter-command-venv)
-  :config
-  ;; TODO refactor to avoid duplication of dap code
-  (setq lc/jupyter-temp-dataframe-buffer  "*inspect-df*")
-  (setq lc/jupyter-temp-dataframe-path "~/tmp-inspect-df.csv")
   (defun lc/jupyter-inspect-df (dataframe)
     "Save the df to csv and open the file with csv-mode"
     (interactive (list (read-from-minibuffer "DataFrame: " (evil-find-symbol nil))))
     (jupyter-eval (format  "%s.to_csv('%s', index=False)" dataframe lc/jupyter-temp-dataframe-path))
     (find-file-other-window lc/jupyter-temp-dataframe-path))
+  :init
+  ;; TODO refactor to avoid duplication of dap code
+  (setq lc/jupyter-temp-dataframe-buffer  "*inspect-df*")
+  (setq lc/jupyter-temp-dataframe-path "~/tmp-inspect-df.csv")
+  (advice-add 'jupyter-command :override #'jupyter-command-venv)
   ;; stop spawning output buffer
   (add-to-list 'display-buffer-alist
                '("\\*jupyter-output\\*\\|\\*jupyter-error\\*"
                  (cons 'display-buffer-no-window
                        '((allow-no-window . t)))))
+  :config
   (require 'python)
-  (with-eval-after-load 'treesit
-    (evil-define-key 'normal 'python-ts-mode-map
-      (kbd "<localleader>J") 'lc/jupyter-repl)))
+  (require 'treesit)
+  (evil-define-key 'normal 'python-ts-mode-map
+    (kbd "<localleader>J") 'lc/jupyter-repl))
+
+(use-package emacs
+  :hook
+  ((org-jupyter-mode . (lambda ()
+                         ;; otherwise jupyter-associate-buffer will fail
+                         (setq major-mode-remap-alist '())
+                         (setq-local evil-lookup-func #'jupyter-inspect-at-point)
+                         ;; disable annoying insert-new-line-and-indent behavior
+                         ;; (setq-local indent-line-function 'lc/no-indent)
+                         ))
+   (org-mode . (lambda () (when (lc/is-jupyter-org-buffer?) (org-jupyter-mode)))))
+  :init
+  (defun lc/no-indent () 'noindent)
+  (defun lc/is-jupyter-org-buffer? ()
+    (with-current-buffer (buffer-name)
+      (goto-char (point-min))
+      (re-search-forward "begin_src jupyter-" 10000 t)))
+  (defun lc/org-cycle-or-py-complete (orig-fun &rest args)
+    "If in a jupyter-python code block, call py-indent-or-complete, otherwise use org-cycle"
+    (if (and (org-in-src-block-p)
+             (eq (intern (org-element-property :language (org-element-at-point))) 'jupyter-python))
+        (lc/py-indent-or-complete)
+      (apply orig-fun args)))
+  (defun lc/py-indent-or-complete ()
+    (interactive "*")
+    (window-configuration-to-register py--windows-config-register)
+    (cond ((use-region-p)
+           (py-indent-region (region-beginning) (region-end)))
+          ((or (bolp)
+               (member (char-before) (list 9 10 12 13 32 ?:  ;; {[(
+                                           ?\) ?\] ?\}))
+               ;; (not (looking-at "[ \t]*$"))
+               )
+           (py-indent-line))
+          ((comint-check-proc (current-buffer))
+           (ignore-errors (completion-at-point)))
+          (t
+           (completion-at-point))))
+  (define-minor-mode org-jupyter-mode
+    "Minor mode which is active when an org file has the string begin_src jupyter-python
+    in the first few hundred rows"
+    :keymap (let ((map (make-sparse-keymap)))
+              map)))
 
 (use-package scimax-jupyter
   :load-path "~/git/scimax"
   :bind
   (:map org-jupyter-mode-map
-        ("<localleader>." . 'scimax-jupyter-org-hydra/body))
+        ("<localleader>?" . 'scimax-jupyter-org-hydra/body)
+        ("<localleader>K" . (lambda () (interactive)
+                              (scimax-jupyter-org-kill-kernel)
+                              (setq header-line-format nil)
+                              (message "killer jupyter kernel"))))
   :hook
   (envrc-mode . lc/init-jupyter)
   :preface
+  (defun lc/replace-in-alist (input key new_value)
+    (mapcar (lambda (pair)
+              (if (equal (car pair) key)
+                  (cons (car pair) new_value)
+                pair))
+            input))
   (defun lc/init-jupyter ()
     (interactive)
     ;; only try to load in org-mode
@@ -1942,10 +1976,24 @@ be passed to EVAL-FUNC as its rest arguments"
       ;; skip if already loaded
       (unless (member '(jupyter . t) org-babel-load-languages)
         ;; only load if jupyter is available
-        (when (executable-find "jupyter")
-          (require 'scimax-jupyter)
-          (setq-local completion-at-point-functions '(jupyter-completion-at-point t)))
-        ))))
+        (if (executable-find "jupyter")
+            (with-no-warnings
+              (require 'scimax-jupyter)
+              ;; (setq org-src-lang-modes
+              ;;       (lc/replace-in-alist org-src-lang-modes "jupyter-python" 'python-ts))
+              )
+          (message "could not initialize scimax-jupyter!")))))
+  :init
+  (defun scimax-jupyter-get-session ()
+    "Get the session name in the current buffer."
+    (let ((lang (car (org-babel-get-src-block-info))))
+      (or
+       (cdr
+        (assoc :session
+               ;; NOTE: replaced 'cadr' with 'car' here
+               (car (org-babel-params-from-properties lang))))
+       (cdr (assoc :session
+                   org-babel-default-header-args:jupyter-python))))))
 
 (use-package evil
   :config
