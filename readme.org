@@ -1,6 +1,10 @@
 #+title: Luca's emacs configuration
+#+SLUG: emacsd
+#+DATE: <2023-03-23>
+#+AUTHOR: Luca Cambiaghi
 #+PROPERTY: header-args:emacs-lisp :tangle ./config.el :mkdirp yes
 #+STARTUP: show3levels
+#+OPTIONS: toc:nil num:nil ^:nil
 
 * About this config
 ** History
@@ -532,6 +536,8 @@ manual."
 
 #+begin_src emacs-lisp
 (use-package evil
+  :hook
+  (edebug-mode . (lambda () (require 'evil-collection-edebug) (evil-normalize-keymaps)))
   :custom
   (evil-want-C-u-scroll t)
   (evil-want-C-i-jump t)
@@ -909,12 +915,12 @@ def getUserBalance(id):
 #+begin_src emacs-lisp
 (use-package emacs
   :bind
-  ("s-b" . 'lc/gpt-complete-buffer-and-insert)
+  ("<leader>cb" . 'lc/gpt-complete-buffer-and-insert)
   ("<leader>op" . (lambda () (interactive)
                     (find-file-other-window lc/gpt-prompts-file)))
   (:map evil-visual-state-map
-        ("s-r" . 'lc/gpt-complete-region-and-insert)
-        ("s-p" . 'lc/gpt-complete-with-prompt-prefix-and-insert))
+        ("<leader>cr" . 'lc/gpt-complete-region-and-insert)
+        ("<leader>cp" . 'lc/gpt-complete-with-prompt-prefix-and-insert))
   :init
   (setq lc/gpt-api-key-getter (lambda () (auth-source-pick-first-password :host "chat.openai.com")))
   ;; (setq lc/gpt-model 'text-davinci-003)
@@ -1268,7 +1274,7 @@ Notest:
   :bind
   ("C-TAB" . 'copilot-accept-completion-by-word)
   ("C-<tab>" . 'copilot-accept-completion-by-word)
-  ("<leader>tc" . (lambda () (interactive)
+  ("<leader>cc" . (lambda () (interactive)
              (setq lc/copilot-enabled (if lc/copilot-enabled nil t))
              (message (if lc/copilot-enabled "Enabled copilot-mode" "Disabled copilot-mode"))
              (lc/toggle-copilot-mode)))
@@ -1278,7 +1284,7 @@ Notest:
         ("C-n" . #'copilot-next-completion)
         ("C-p" . #'copilot-previous-completion))
   :init
-  (setq lc/copilot-enabled t)
+  (setq lc/copilot-enabled nil)
   (defun lc/toggle-copilot-mode ()
     (interactive)
     (copilot-mode (if lc/copilot-enabled 1 -1)))
@@ -1435,6 +1441,7 @@ We can avoid evaluation of code with:
         ("<normal-state><localleader>el" . 'eros-eval-last-sexp)
         ("<visual-state><localleader>e" . 'eros-eval-last-sexp)
         ("<localleader>E" . 'org-export-dispatch)
+        ("TAB" . nil)
         )
   :custom
   (org-src-preserve-indentation t)
@@ -1465,6 +1472,7 @@ We can avoid evaluation of code with:
             (org-cycle-internal-local)
             t)))))
   :config
+  (remove-hook 'org-mode-hook 'org-appear-mode)
   ;; (add-to-list 'org-src-lang-modes '("jupyter-python" . python-ts))
   (plist-put org-format-latex-options :background "Transparent")
   (plist-put org-format-latex-options :scale 1.4)
@@ -1509,6 +1517,7 @@ We can avoid evaluation of code with:
         (org-map-entries (lambda () (lc/org-custom-id-get (point) 'create))))))
   :config
   (require 'org-id)
+  (setq org-id-track-globally nil)
   (setq org-id-link-to-org-use-id 'create-if-interactive-and-no-custom-id)
   )
   #+end_src
@@ -1625,6 +1634,37 @@ Notes:
 #+end_src
 
 * Other packages 
+** TODO bookmark
+
+#+begin_src emacs-lisp
+(use-package bookmark
+  :ensure nil
+  :bind
+  ("<leader>rr" . 'bookmark-set)
+  ("<leader>rd" . 'bookmark-delete)
+  ("<leader>r1" . (lambda () (interactive) (bookmark-set "1")))
+  ("<leader>r2" . (lambda () (interactive) (bookmark-set "2")))
+  ("<leader>r3" . (lambda () (interactive) (bookmark-set "3")))
+  ("<leader>r4" . (lambda () (interactive) (bookmark-set "4")))
+  ("s-1" . (lambda () (interactive) (bookmark-jump "1")))
+  ("s-2" . (lambda () (interactive) (bookmark-jump "2")))
+  ("s-3" . (lambda () (interactive) (bookmark-jump "3")))
+  ("s-4" . (lambda () (interactive) (bookmark-jump "4")))
+  ;; ("s-1" . (lambda () (interactive) (jump-to-numbered-bookmark 0)))
+  ;; ("s-2" . (lambda () (interactive) (jump-to-numbered-bookmark 1)))
+  ;; ("s-3" . (lambda () (interactive) (jump-to-numbered-bookmark 2)))
+  ;; ("s-4" . (lambda () (interactive) (jump-to-numbered-bookmark 3)))
+  :preface
+  (defun jump-to-numbered-bookmark (num)
+    "Jump to the bookmark with the given numeric prefix."
+    (interactive)
+    (when-let ((bookmark (nth num bookmark-alist)))
+      (find-file (bookmark-get-filename bookmark))))
+  ;; :config
+  ;; (add-hook 'bookmark-bmenu-mode-hook #'hl-line-mode)
+  )
+#+end_src
+
 ** consult
 
 #+begin_src emacs-lisp
@@ -1677,16 +1717,23 @@ Notes:
     (consult-notes-denote-mode)))
 #+end_src
 
-** corfu
+** TODO corfu
 
 #+begin_src emacs-lisp
 (use-package corfu
+  :bind
+  (:map corfu-map
+        ("<insert-state><escape>" . 'corfu-quit))
   :custom
   (corfu-min-width 80)
   ;; Always have the same width
   (corfu-max-width corfu-min-width)
+  (corfu-auto nil)
+  (tab-always-indent 'complete)
   :config
-  (corfu-popupinfo-mode -1))
+  (corfu-popupinfo-mode -1)
+  (global-corfu-mode -1)
+)
 #+end_src
 
 ** denote
@@ -2123,6 +2170,21 @@ To build grammar:
 :PROPERTIES:
 :ID:       F10EA50B-0AB5-45EE-B2D2-1780CA5C0E00
 :END:
+** COMMENT eglot
+
+#+begin_src emacs-lisp
+(use-package eglot
+  :custom
+  (eglot-workspace-configuration
+   '(:pyright (:useLibraryCodeForTypes t :openFilesOnly :json-false))
+   (read-process-output-max (* 1024 1024))
+   (eglot-sync-connect 0)
+   :config
+   (add-to-list 'eglot-server-programs
+                '(python-mode . ("pyright-langserver" "--stdio")))
+   )
+#+end_src
+
 ** lsp-mode
 
 #+begin_src emacs-lisp
@@ -2151,7 +2213,6 @@ To build grammar:
   (lsp-auto-execute-action nil)
   (lsp-before-save-edits nil)
   (lsp-headerline-breadcrumb-enable nil)
-  (lsp-diagnostics-provider :none)
   :config
   (add-to-list 'lsp-language-id-configuration '(python-ts-mode . "python"))
   )
@@ -2761,8 +2822,6 @@ Notes:
     (kbd "<leader>lr")  'raise-sexp
     (kbd "<leader>lb")  'sp-forward-barf-sexp
     (kbd "<leader>ls")  'sp-forward-slurp-sexp
-    (kbd "<leader>rr")  'bookmark-set
-    (kbd "<leader>rd")  'bookmark-delete
     (kbd "<leader>td")  'toggle-debug-on-error
     (kbd "<leader>tl")  'display-line-numbers-mode
     ;; toggle wrapped lines

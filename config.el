@@ -627,12 +627,12 @@ be passed to EVAL-FUNC as its rest arguments"
 
 (use-package emacs
   :bind
-  ("s-b" . 'lc/gpt-complete-buffer-and-insert)
+  ("<leader>cb" . 'lc/gpt-complete-buffer-and-insert)
   ("<leader>op" . (lambda () (interactive)
                     (find-file-other-window lc/gpt-prompts-file)))
   (:map evil-visual-state-map
-        ("s-r" . 'lc/gpt-complete-region-and-insert)
-        ("s-p" . 'lc/gpt-complete-with-prompt-prefix-and-insert))
+        ("<leader>cr" . 'lc/gpt-complete-region-and-insert)
+        ("<leader>cp" . 'lc/gpt-complete-with-prompt-prefix-and-insert))
   :init
   (setq lc/gpt-api-key-getter (lambda () (auth-source-pick-first-password :host "chat.openai.com")))
   ;; (setq lc/gpt-model 'text-davinci-003)
@@ -848,7 +848,7 @@ be passed to EVAL-FUNC as its rest arguments"
   :bind
   ("C-TAB" . 'copilot-accept-completion-by-word)
   ("C-<tab>" . 'copilot-accept-completion-by-word)
-  ("<leader>tc" . (lambda () (interactive)
+  ("<leader>cc" . (lambda () (interactive)
              (setq lc/copilot-enabled (if lc/copilot-enabled nil t))
              (message (if lc/copilot-enabled "Enabled copilot-mode" "Disabled copilot-mode"))
              (lc/toggle-copilot-mode)))
@@ -858,7 +858,7 @@ be passed to EVAL-FUNC as its rest arguments"
         ("C-n" . #'copilot-next-completion)
         ("C-p" . #'copilot-previous-completion))
   :init
-  (setq lc/copilot-enabled t)
+  (setq lc/copilot-enabled nil)
   (defun lc/toggle-copilot-mode ()
     (interactive)
     (copilot-mode (if lc/copilot-enabled 1 -1)))
@@ -983,6 +983,7 @@ be passed to EVAL-FUNC as its rest arguments"
         ("<normal-state><localleader>el" . 'eros-eval-last-sexp)
         ("<visual-state><localleader>e" . 'eros-eval-last-sexp)
         ("<localleader>E" . 'org-export-dispatch)
+        ("TAB" . nil)
         )
   :custom
   (org-src-preserve-indentation t)
@@ -1013,6 +1014,7 @@ be passed to EVAL-FUNC as its rest arguments"
             (org-cycle-internal-local)
             t)))))
   :config
+  (remove-hook 'org-mode-hook 'org-appear-mode)
   ;; (add-to-list 'org-src-lang-modes '("jupyter-python" . python-ts))
   (plist-put org-format-latex-options :background "Transparent")
   (plist-put org-format-latex-options :scale 1.4)
@@ -1133,6 +1135,33 @@ be passed to EVAL-FUNC as its rest arguments"
           (dark . modus-operandi)))
   (setq org-export-backends '(html)))
 
+(use-package bookmark
+  :ensure nil
+  :bind
+  ("<leader>rr" . 'bookmark-set)
+  ("<leader>rd" . 'bookmark-delete)
+  ("<leader>r1" . (lambda () (interactive) (bookmark-set "1")))
+  ("<leader>r2" . (lambda () (interactive) (bookmark-set "2")))
+  ("<leader>r3" . (lambda () (interactive) (bookmark-set "3")))
+  ("<leader>r4" . (lambda () (interactive) (bookmark-set "4")))
+  ("s-1" . (lambda () (interactive) (bookmark-jump "1")))
+  ("s-2" . (lambda () (interactive) (bookmark-jump "2")))
+  ("s-3" . (lambda () (interactive) (bookmark-jump "3")))
+  ("s-4" . (lambda () (interactive) (bookmark-jump "4")))
+  ;; ("s-1" . (lambda () (interactive) (jump-to-numbered-bookmark 0)))
+  ;; ("s-2" . (lambda () (interactive) (jump-to-numbered-bookmark 1)))
+  ;; ("s-3" . (lambda () (interactive) (jump-to-numbered-bookmark 2)))
+  ;; ("s-4" . (lambda () (interactive) (jump-to-numbered-bookmark 3)))
+  :preface
+  (defun jump-to-numbered-bookmark (num)
+    "Jump to the bookmark with the given numeric prefix."
+    (interactive)
+    (when-let ((bookmark (nth num bookmark-alist)))
+      (find-file (bookmark-get-filename bookmark))))
+  ;; :config
+  ;; (add-hook 'bookmark-bmenu-mode-hook #'hl-line-mode)
+  )
+
 (use-package consult
   :bind
   ("<leader>bb" . 'consult-buffer)
@@ -1178,12 +1207,19 @@ be passed to EVAL-FUNC as its rest arguments"
     (consult-notes-denote-mode)))
 
 (use-package corfu
+  :bind
+  (:map corfu-map
+        ("<insert-state><escape>" . 'corfu-quit))
   :custom
   (corfu-min-width 80)
   ;; Always have the same width
   (corfu-max-width corfu-min-width)
+  (corfu-auto nil)
+  (tab-always-indent 'complete)
   :config
-  (corfu-popupinfo-mode -1))
+  (corfu-popupinfo-mode -1)
+  (global-corfu-mode -1)
+)
 
 (use-package denote
   :hook
@@ -1563,7 +1599,6 @@ be passed to EVAL-FUNC as its rest arguments"
   (lsp-auto-execute-action nil)
   (lsp-before-save-edits nil)
   (lsp-headerline-breadcrumb-enable nil)
-  (lsp-diagnostics-provider :none)
   :config
   (add-to-list 'lsp-language-id-configuration '(python-ts-mode . "python"))
   )
@@ -2022,8 +2057,6 @@ be passed to EVAL-FUNC as its rest arguments"
     (kbd "<leader>lr")  'raise-sexp
     (kbd "<leader>lb")  'sp-forward-barf-sexp
     (kbd "<leader>ls")  'sp-forward-slurp-sexp
-    (kbd "<leader>rr")  'bookmark-set
-    (kbd "<leader>rd")  'bookmark-delete
     (kbd "<leader>td")  'toggle-debug-on-error
     (kbd "<leader>tl")  'display-line-numbers-mode
     ;; toggle wrapped lines
