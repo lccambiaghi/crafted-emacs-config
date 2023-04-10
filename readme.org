@@ -29,21 +29,22 @@ Approach:
 ** Structure
 
 Sections:
-- Emacs core settings
+- [[id:134D0B3D-6BA7-4240-A586-49AF1C343F35][Emacs core settings]]
   - Configuration with =(use-package emacs)= blocks (no external packages), variables, helpers
   - Install =no-littering=
   - Load modules provided by =crafted-emacs=
   - Install =vc-use-package= to add the =:vc= keyword to =use-package=
-- User interface
-  - Configuration with =(use-package emacs)= blocks
+- [[id:9BC5F95A-DE45-4F06-BB2B-A3EA810FA11F][User interface]]
+  - First =(use-package emacs)= blocks
   - Then external packages
 - Packages
-  - External packages
-  - Evil
-  - Git
-  - Org mode
-  - Programming languages
-- Keybindings
+  - [[id:EE1017C0-A622-4637-8E13-D8DF41474471][Evil]]
+  - [[id:C36F8C53-5CA7-4092-8DBF-9E2654A2BC5F][GPT interface]]
+  - [[id:0F716E8A-CA57-4664-A33A-C991FB503993][Git]]
+  - [[id:881FB236-BBA7-4447-B670-CBA6778C119A][Org mode]]
+  - [[id:02101696-D85E-4A96-8EEE-8D19FE710F1B][Other misc packages]]
+  - [[id:F10EA50B-0AB5-45EE-B2D2-1780CA5C0E00][Programming languages]]
+- [[id:07C0EE37-AD32-47E3-B859-8F6BDF48A45E][Global keybindings]]
 
 In my previous "big" config I had organized everything into modules
 but I found that I need all the packages I use and I don't need the
@@ -56,8 +57,29 @@ where maybe I will only rarely need to use the =R= packages or the
 deferred, they will only be loaded when needed. This means that the
 only cost of keeping those sections in my config is the time spent
 installing the packages on the first setup.
+** Notable sections
+
+Here I report sections that greatly improve my productivity or that I
+am particularly proud of. 
+
+In order of appearance in my config:
+- [[id:52D73878-07D4-4CFF-9C2C-A33FC681EDC3][Enlarge window]] (copied from DOOM)
+- [[id:405DD8F8-3413-4574-85C3-BF25E4D06464][Web browser in emacs]] (requires =emacs= built with widgets support)
+- [[id:FF09079B-3767-40B3-9594-FDC8B522D8F5][Search code on github]]
+- [[id:BFFC1A23-0EB5-4447-83EB-C5B11E44E7F6][Jump to bookmark]]
+- [[id:34178C71-DA01-4ABB-BAE7-721A5241A3E6][Eval operator]] (copied from DOOM)
+- evil text objects [[id:89EB24FE-D468-47D1-9830-D35B8DFA74A9][for org mode]] (code block and subtree), [[id:59747AC7-E301-4E28-BB49-DBE271F5346C][for outer form]] and [[id:DB7634CB-ACA6-4231-A353-7944A6934639][for buffer]]
+- [[id:986C646E-3A9C-4E12-9714-1C4AD7B108C7][Complete region with chatGPT]]
+- [[id:5A2C863C-BAFB-4A12-B7F4-19E9419E4B3F][Use org-id in links]]
+- [[id:13700741-D5F0-42DA-9C2F-9F16E1939C5E][csv mode]]
+- [[id:696CB40C-C156-4200-8765-2A5195019370][dap mode]] (=dap-inspect-df= function)
+- [[id:FD007CD2-4FBE-4B84-9B21-64BC458DAA17][jupyter]]
+- [[id:C6B74718-A162-4F16-A39D-40F96AF90589][org-jupyter-mode]] and [[id:DB6857A4-6F8F-4338-BB1A-3A5BC12700E4][scimax-jupyter]]
 
 * Emacs core settings
+:PROPERTIES:
+:ID:       134D0B3D-6BA7-4240-A586-49AF1C343F35
+:END:
 ** use-package
 
 #+begin_src emacs-lisp
@@ -120,7 +142,31 @@ installing the packages on the first setup.
   (electric-indent-mode -1))
 #+end_src
 
+** jump to bookmark
+:PROPERTIES:
+:ID:       BFFC1A23-0EB5-4447-83EB-C5B11E44E7F6
+:END:
+
+#+begin_src emacs-lisp
+(use-package bookmark
+  :ensure nil
+  :bind
+  ("<leader>rr" . 'bookmark-set)
+  ("<leader>rd" . 'bookmark-delete)
+  ("<leader>r1" . (lambda () (interactive) (bookmark-set "1")))
+  ("<leader>r2" . (lambda () (interactive) (bookmark-set "2")))
+  ("<leader>r3" . (lambda () (interactive) (bookmark-set "3")))
+  ("<leader>r4" . (lambda () (interactive) (bookmark-set "4")))
+  ("s-1" . (lambda () (interactive) (bookmark-jump "1")))
+  ("s-2" . (lambda () (interactive) (bookmark-jump "2")))
+  ("s-3" . (lambda () (interactive) (bookmark-jump "3")))
+  ("s-4" . (lambda () (interactive) (bookmark-jump "4"))))
+#+end_src
+
 ** Enlarge window
+:PROPERTIES:
+:ID:       52D73878-07D4-4CFF-9C2C-A33FC681EDC3
+:END:
 
 #+begin_src emacs-lisp
 (use-package emacs
@@ -167,6 +213,9 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
 #+end_src
 
 ** Web browser in emacs
+:PROPERTIES:
+:ID:       405DD8F8-3413-4574-85C3-BF25E4D06464
+:END:
 
 Note:
 - Sometimes after browsing the web and returning to a buffer
@@ -204,6 +253,9 @@ Note:
 #+end_src
 
 ** Search code on github
+:PROPERTIES:
+:ID:       FF09079B-3767-40B3-9594-FDC8B522D8F5
+:END:
 
 #+begin_src emacs-lisp
 (use-package emacs
@@ -302,15 +354,6 @@ Note:
     (server-start)))
 #+end_src
 
-** Don't compile jupyter
-
-#+begin_src emacs-lisp
-(use-package emacs
-  :init
-  (add-to-list 'native-comp-bootstrap-deny-list ".*jupyter.*")
-  (add-to-list 'native-comp-jit-compilation-deny-list ".*jupyter.*"))
-#+end_src
-
 ** add :vc keyword to use-package
 
 #+begin_src emacs-lisp
@@ -322,6 +365,9 @@ Note:
 #+end_src
 
 * User interface
+:PROPERTIES:
+:ID:       9BC5F95A-DE45-4F06-BB2B-A3EA810FA11F
+:END:
 ** Maximize frame on startup
 
 #+begin_src emacs-lisp
@@ -400,34 +446,21 @@ manual."
       (_ (error "No Modus theme is loaded; evaluate `modus-themes-load-themes' first")))))
 #+end_src
 
-** Add frame borders
-
-#+begin_src emacs-lisp
-(use-package emacs
-  :init
-  (modify-all-frames-parameters
-   '((right-divider-width . 10)
-     (internal-border-width . 10)))
-  (defun lc/hide-divider-and-fringe ()
-    (dolist (face '(window-divider
-                    window-divider-first-pixel
-                    window-divider-last-pixel))
-      (face-spec-reset-face face)
-      (set-face-foreground face (face-attribute 'default :background)))
-    (set-face-background 'fringe (face-attribute 'default :background)))
-  ;; call it once at init time
-  (lc/hide-divider-and-fringe)
-  ;; call it every time the theme changes
-  (advice-add 'lc/modus-themes-toggle
-              :after (lambda () (interactive) (lc/hide-divider-and-fringe))))
-  #+end_src
-
 ** Inhibit startup screen
 
 #+begin_src emacs-lisp
 (use-package emacs
   :init
   (setq crafted-startup-inhibit-splash t))
+#+end_src
+
+** all-the-icons
+
+#+begin_src emacs-lisp
+(use-package all-the-icons
+  :config
+  (add-to-list 'all-the-icons-extension-icon-alist
+               '("eld" all-the-icons-fileicon "elisp" :height 1.0 :v-adjust -0.2 :face all-the-icons-purple)))
 #+end_src
 
 ** all-the-icons completion
@@ -439,6 +472,17 @@ manual."
   :hook (marginalia-mode . all-the-icons-completion-marginalia-setup)
   :init
   (all-the-icons-completion-mode))
+#+end_src
+
+** all-the-icons-dired
+
+#+begin_src emacs-lisp
+(use-package all-the-icons-dired
+  :if (display-graphic-p)
+  :hook
+  (dired-mode . (lambda () (interactive)
+                  (unless (file-remote-p default-directory)
+                    (all-the-icons-dired-mode)))))
 #+end_src
 
 ** Doom modeline
@@ -531,7 +575,30 @@ manual."
   ("<leader>t=" . (lambda () (interactive) (centered-cursor-mode 'toggle))))
 #+end_src
 
+** sideline-flymake
+
+#+begin_src emacs-lisp
+(use-package sideline-flymake
+  :vc (:fetcher "github" :repo "emacs-sideline/sideline-flymake")
+  :hook (flymake-mode . sideline-mode)
+  :init
+  ;; (setq sideline-display-backend-name t)
+  (setq sideline-flymake-display-mode 'line)
+  (setq sideline-backends-right '(sideline-flymake)))
+
+;; (use-package sideline-lsp
+;;   :vc (:fetcher "github" :repo "emacs-sideline/sideline-lsp")
+;;   :hook (lsp-mode . sideline-mode)
+;;   :init
+;;   (add-to-list 'sideline-backends-right 'sideline-lsp)
+;;   (setq sideline-lsp-update-mode 'line)
+;; )
+#+end_src
+
 * Evil
+:PROPERTIES:
+:ID:       EE1017C0-A622-4637-8E13-D8DF41474471
+:END:
 ** evil mode
 
 #+begin_src emacs-lisp
@@ -571,6 +638,9 @@ manual."
 #+end_src
 
 ** eval operator
+:PROPERTIES:
+:ID:       34178C71-DA01-4ABB-BAE7-721A5241A3E6
+:END:
 
 #+begin_src emacs-lisp
 (use-package evil
@@ -613,6 +683,9 @@ be passed to EVAL-FUNC as its rest arguments"
 #+end_src
 
 ** evil-org-mode, org text objects
+:PROPERTIES:
+:ID:       89EB24FE-D468-47D1-9830-D35B8DFA74A9
+:END:
 
 Text objects:
 - =e= :: code block
@@ -754,6 +827,9 @@ Text objects:
 #+end_src
 
 ** evil cleverparens, outer form text object
+:PROPERTIES:
+:ID:       59747AC7-E301-4E28-BB49-DBE271F5346C
+:END:
 
 #+begin_src emacs-lisp
 (use-package evil-cleverparens
@@ -783,6 +859,9 @@ Text objects:
 #+end_src
 
 ** evil buffer text object
+:PROPERTIES:
+:ID:       DB7634CB-ACA6-4231-A353-7944A6934639
+:END:
 
 #+begin_src emacs-lisp
 (use-package evil
@@ -873,6 +952,9 @@ Keybindings:
 #+END_SRC
 
 * GPT interface
+:PROPERTIES:
+:ID:       C36F8C53-5CA7-4092-8DBF-9E2654A2BC5F
+:END:
 ** Notes
 Interesting ideas:
 - Generating fake data/dataframe
@@ -911,13 +993,14 @@ def getUserBalance(id):
 #+end_src
 
 ** Complete region/buffer with gpt
+:PROPERTIES:
+:ID:       986C646E-3A9C-4E12-9714-1C4AD7B108C7
+:END:
 
 #+begin_src emacs-lisp
 (use-package emacs
   :bind
   ("<leader>cb" . 'lc/gpt-complete-buffer-and-insert)
-  ("<leader>op" . (lambda () (interactive)
-                    (find-file-other-window lc/gpt-prompts-file)))
   (:map evil-visual-state-map
         ("<leader>cr" . 'lc/gpt-complete-region-and-insert)
         ("<leader>cp" . 'lc/gpt-complete-with-prompt-prefix-and-insert))
@@ -944,8 +1027,8 @@ def getUserBalance(id):
         :type "POST"
         :data (json-encode `((,prompt-key . ,prompt-or-messages)
                              ("model"  . ,lc/gpt-model)
+                             ("temperature" . ,lc/gpt-temperature)
                              ;; ("max_tokens" . ,lc/gpt-max-output-tokens)
-                             ;; ("temperature" . ,lc/gpt-temperature)
                              ;; ("frequency_penalty" . ,lc/gpt-frequency-penalty)
                              ;; ("presence_penalty" . ,lc/gpt-presence-penalty)
                              ;; ("top_p" . ,lc/gpt-top-p)
@@ -996,18 +1079,18 @@ def getUserBalance(id):
     "Send the region to OpenAI and insert the result to the end of buffer. "
     (interactive "r")
     (let* ((prompt (buffer-substring-no-properties start end))
-          (messages `[(("role"    . "user") ("content" . ,prompt))])
-          (chat-model (eq lc/gpt-model 'gpt-3.5-turbo-0301)))
+           (messages `[(("role"    . "user") ("content" . ,prompt))])
+           (chat-model (eq lc/gpt-model 'gpt-3.5-turbo-0301)))
       (lc/gpt-complete-and-insert (if chat-model messages prompt))))
 
-    (defun lc/gpt-complete-buffer-and-insert ()
-      "Send the ENTIRE buffer, up to max tokens, to OpenAI and insert the result to the end of buffer."
-      (interactive)
-      (let ((prompt (buffer-substring-no-properties (point-min) (point-max))))
-        (lc/gpt-complete-and-insert prompt)))
+  (defun lc/gpt-complete-buffer-and-insert ()
+    "Send the ENTIRE buffer, up to max tokens, to OpenAI and insert the result to the end of buffer."
+    (interactive)
+    (let ((prompt (buffer-substring-no-properties (point-min) (point-max))))
+      (lc/gpt-complete-and-insert prompt)))
 
-    :config
-    (require 'request))
+  :config
+  (require 'request))
 #+end_src
 
 ** Search with alpaca
@@ -1130,9 +1213,14 @@ def getUserBalance(id):
   :bind
   ("s-g" . 'chatgpt-shell)
   ("s-d" . 'dall-e-shell)
-  :init
-  (setq chatgpt-shell-openai-key (auth-source-pick-first-password :host "chat.openai.com"))
-  (setq chatgpt-shell-chatgpt-model-version "gpt-3.5-turbo-0301")
+  ("<leader>op" . (lambda () (interactive)
+                    (require 'ob-chatgpt-shell)
+                    (ob-chatgpt-shell-setup)
+                    (find-file-other-window lc/gpt-prompts-file)))
+  :custom
+  (chatgpt-shell-chatgpt-streaming t)
+  (chatgpt-shell-chatgpt-model-version "gpt-3.5-turbo-0301")
+  (chatgpt-shell-openai-key (lambda () (auth-source-pick-first-password :host "chat.openai.com")))
   )
 #+end_src
 
@@ -1236,10 +1324,7 @@ Features
   :init
   (setq chatgpt-arcana-api-key (auth-source-pick-first-password :host "chat.openai.com"))
   :config
-  (use-package all-the-icons
-    :config
-    (add-to-list 'all-the-icons-mode-icon-alist
-                 '(chatgpt-arcana-chat-mode all-the-icons-octicon "comment-discussion" :height 1.0 :v-adjust -0.1 :face all-the-icons-purple)))
+  
   (use-package pretty-hydra
     :config
     (eval `(pretty-hydra-define chatgpt-arcana-hydra (:color blue :quit-key "q" :title "ChatGPT Arcana")
@@ -1292,6 +1377,9 @@ Notest:
 #+end_src
 
 * Git
+:PROPERTIES:
+:ID:       0F716E8A-CA57-4664-A33A-C991FB503993
+:END:
 ** Magit
 
 #+begin_src emacs-lisp
@@ -1412,6 +1500,9 @@ Notest:
 #+end_src
 
 * Org 
+:PROPERTIES:
+:ID:       881FB236-BBA7-4447-B670-CBA6778C119A
+:END:
 ** Org mode
 
 When exporting ~.org~ file to HTML, we can add this header:
@@ -1431,12 +1522,12 @@ We can avoid evaluation of code with:
   (:map org-mode-map
         ("<localleader>a" . 'org-archive-subtree)
         ("<localleader>i" . 'org-insert-structure-template)
-        ("<visual-state><localleader>l" . 'org-insert-link)
-        ("<normal-state><localleader>ll" . 'org-insert-link)
-        ("<normal-state><localleader>ls" . 'org-store-link)
+        ("<localleader>ll" . 'org-insert-link)
+        ("<localleader>ls" . 'org-store-link)
         ("<localleader>L" . (lambda () (interactive) (org-latex-preview)))
         ("<localleader>n" . 'org-toggle-narrow-to-subtree)
         ("<localleader>r" . 'org-refile)
+        ("<localleader>t" . 'org-todo)
         ("<localleader>x" . 'org-toggle-checkbox)
         ("<normal-state><localleader>el" . 'eros-eval-last-sexp)
         ("<visual-state><localleader>e" . 'eros-eval-last-sexp)
@@ -1448,8 +1539,8 @@ We can avoid evaluation of code with:
   (org-src-tab-acts-natively t)
   ;; (org-startup-indented t)
   (org-hide-emphasis-markers t)
-  ;; (org-hide-leading-stars t)
-  (org-catch-invisible-edits 'smart)
+  (org-catch-invisible-edits 'error)
+  (org-link-descriptive nil)
   (org-pretty-entities t)
   (org-ellipsis "…")
   (org-insert-heading-respect-content t)
@@ -1472,8 +1563,8 @@ We can avoid evaluation of code with:
             (org-cycle-internal-local)
             t)))))
   :config
-  (remove-hook 'org-mode-hook 'org-appear-mode)
-  ;; (add-to-list 'org-src-lang-modes '("jupyter-python" . python-ts))
+  (with-eval-after-load 'org-appear
+    (setq org-appear-autolinks t))
   (plist-put org-format-latex-options :background "Transparent")
   (plist-put org-format-latex-options :scale 1.4)
   ;; Only fold the current tree, rather than recursively
@@ -1482,6 +1573,9 @@ We can avoid evaluation of code with:
 #+end_src
 
 ** use org-id in links
+:PROPERTIES:
+:ID:       5A2C863C-BAFB-4A12-B7F4-19E9419E4B3F
+:END:
 
 #+begin_src emacs-lisp
 (use-package org
@@ -1567,8 +1661,6 @@ We can avoid evaluation of code with:
         ("<localleader>z" . 'org-babel-hide-result-toggle))
   (:map org-src-mode-map
         ("<localleader>." . 'org-edit-src-exit))
-  ;; :hook
-  ;; ((prog-mode org-mode) . (lambda () (setq indent-line-function #'(lambda () 'noindent))))
   :custom
   (org-confirm-babel-evaluate nil)
   (org-src-ask-before-returning-to-edit-buffer nil)
@@ -1578,10 +1670,8 @@ We can avoid evaluation of code with:
    'org-babel-load-languages
    '((emacs-lisp . t)
      ;; (clojure . t)
-     ;; (ledger . t)
      (shell . t)))
-  (add-hook 'org-babel-after-execute-hook 'org-display-inline-images 'append)
-  )
+  (add-hook 'org-babel-after-execute-hook 'org-display-inline-images 'append))
 
 ;; (use-package ob-async
 ;;   :hook (org-load . (lambda () (require 'ob-async)))
@@ -1592,33 +1682,36 @@ We can avoid evaluation of code with:
 ** org modern
 
 #+begin_src emacs-lisp
+;; add frame borders to show code block "line"
+(use-package emacs
+  :init
+  (modify-all-frames-parameters
+   '((right-divider-width . 10)
+     (internal-border-width . 10)))
+  (defun lc/hide-divider-and-fringe ()
+    (dolist (face '(window-divider
+                    window-divider-first-pixel
+                    window-divider-last-pixel))
+      (face-spec-reset-face face)
+      (set-face-foreground face (face-attribute 'default :background)))
+    (set-face-background 'fringe (face-attribute 'default :background)))
+  ;; call it once at init time
+  (lc/hide-divider-and-fringe)
+  ;; call it every time the theme changes
+  (advice-add 'lc/modus-themes-toggle
+              :after (lambda () (interactive) (lc/hide-divider-and-fringe))))
+
 (use-package org-modern
   :hook
   (org-mode . org-modern-mode))
 #+end_src
 
-** TODO org export config to HTML
-
-Notes:
-- Github pages is set up on my config repo
-  - Every time I push to =main= the HTML files get deployed to e.g. =https://lucacambiaghi.com/crafted-emacs-config/readme.html=
-- To export:
-  - Restart emacs and run =org-export-dispatch=
+** org fragtog
 
 #+begin_src emacs-lisp
-(use-package org-html-themify
-  :vc (:fetcher "github" :repo "DogLooksGood/org-html-themify")
-  ;; :hook (org-mode . org-html-themify-mode)
-  :config
-  (use-package hexrgb
-    :vc (:fetcher "github" :repo "emacsmirror/hexrgb")
-    :demand t)
-  ;; otherwise it complains about invalid face
-  (require 'hl-line)
-  (setq org-html-themify-themes
-        '((light . modus-operandi)
-          (dark . modus-operandi)))
-  (setq org-export-backends '(html)))
+(use-package org-fragtog
+  :hook
+  (org-mode))
 #+end_src
 
 ** COMMENT org-re-reveal
@@ -1634,37 +1727,9 @@ Notes:
 #+end_src
 
 * Other packages 
-** TODO bookmark
-
-#+begin_src emacs-lisp
-(use-package bookmark
-  :ensure nil
-  :bind
-  ("<leader>rr" . 'bookmark-set)
-  ("<leader>rd" . 'bookmark-delete)
-  ("<leader>r1" . (lambda () (interactive) (bookmark-set "1")))
-  ("<leader>r2" . (lambda () (interactive) (bookmark-set "2")))
-  ("<leader>r3" . (lambda () (interactive) (bookmark-set "3")))
-  ("<leader>r4" . (lambda () (interactive) (bookmark-set "4")))
-  ("s-1" . (lambda () (interactive) (bookmark-jump "1")))
-  ("s-2" . (lambda () (interactive) (bookmark-jump "2")))
-  ("s-3" . (lambda () (interactive) (bookmark-jump "3")))
-  ("s-4" . (lambda () (interactive) (bookmark-jump "4")))
-  ;; ("s-1" . (lambda () (interactive) (jump-to-numbered-bookmark 0)))
-  ;; ("s-2" . (lambda () (interactive) (jump-to-numbered-bookmark 1)))
-  ;; ("s-3" . (lambda () (interactive) (jump-to-numbered-bookmark 2)))
-  ;; ("s-4" . (lambda () (interactive) (jump-to-numbered-bookmark 3)))
-  :preface
-  (defun jump-to-numbered-bookmark (num)
-    "Jump to the bookmark with the given numeric prefix."
-    (interactive)
-    (when-let ((bookmark (nth num bookmark-alist)))
-      (find-file (bookmark-get-filename bookmark))))
-  ;; :config
-  ;; (add-hook 'bookmark-bmenu-mode-hook #'hl-line-mode)
-  )
-#+end_src
-
+:PROPERTIES:
+:ID:       02101696-D85E-4A96-8EEE-8D19FE710F1B
+:END:
 ** consult
 
 #+begin_src emacs-lisp
@@ -1755,7 +1820,6 @@ Notes:
                     (find-file (concat denote-directory "/todo.org"))))
   :custom
   (denote-known-keywords '())
-  (lc/gpt-prompts-file (concat denote-directory "/20230330T145824--useful-gpt-prompts__llm_org.org"))
   :preface
   (defun lc/denote-org-extract-subtree ()
     "Create new Denote note using current Org subtree. Delete the original subtree."
@@ -1775,10 +1839,11 @@ Notes:
      '("journal"))) ; multiple keywords are a list of strings: '("one" "two")
   :init
   (setq denote-directory "/Users/cambiaghiluca/OneDrive - The Boston Consulting Group, Inc/Documents/denote")
+  (setq lc/gpt-prompts-file (concat denote-directory "/20230330T145824--useful-gpt-prompts__llm_org.org"))
 
   (with-eval-after-load 'org
     (setq org-directory denote-directory)
-    (setq org-agenda-files (directory-files-recursively denote-directory "\\.org$")))
+    (setq org-agenda-files (directory-files-recursively denote-directory "\\todo.org$")))
   )
 #+end_src
 
@@ -1843,12 +1908,6 @@ Notes:
     (evil-collection-define-key 'normal 'dired-mode-map
       "i" 'dired-subtree-toggle)))
 
-(use-package all-the-icons-dired
-  :if (display-graphic-p)
-  :hook
-  (dired-mode . (lambda () (interactive)
-                  (unless (file-remote-p default-directory)
-                    (all-the-icons-dired-mode)))))
 #+end_src
 
 ** embark
@@ -1885,22 +1944,15 @@ Notes:
 ** flymake
 
 #+begin_src emacs-lisp
-  (use-package flymake
-    :ensure nil
-    :hook (((python-base-mode emacs-lisp-mode) . flymake-mode)
-           ;; (lsp-managed-mode . (lambda () (cond ((derived-mode-p 'python-base-mode)
-           ;;                                       (add-hook 'flymake-diagnostic-functions 'python-flymake nil t))
-           ;;                                      ;; if not adding diagnostic functions to other modes just use an if
-           ;;                                      ;; ...
-           ;;                                      (t nil))))
-           )
+(use-package flymake
+  :ensure nil
+  :bind
+  ("<leader>!j" . 'flymake-goto-next-error)
+  ("<leader>!k" . 'flymake-goto-prev-error)
+  :hook
+  (python-base-mode emacs-lisp-mode)
   :custom
-  (flymake-fringe-indicator-position 'right-fringe)
-  ;; (python-flymake-command '("ruff" "--quiet" "--stdin-filename=stdin" "-"))
-                          ;; :general
-                          ;; (general-nmap "] !" 'flymake-goto-next-error)
-                          ;; (general-nmap "[ !" 'flymake-goto-prev-error)
-  )
+  (flymake-fringe-indicator-position 'right-fringe))
 #+end_src
 
 ** hydra and windows-hydra
@@ -2081,7 +2133,7 @@ To build grammar:
   )
 #+end_src
 
-** treemacs
+** TODO treemacs
 
 #+begin_src emacs-lisp
 (use-package treemacs
@@ -2090,8 +2142,7 @@ To build grammar:
   (:map evil-treemacs-state-map
         ("SPC" . evil-send-leader))
   :config
-  (use-package treemacs-evil
-    :demand t)
+  (use-package treemacs-evil :demand t)
   (use-package treemacs-tab-bar
     :demand t
     :config
@@ -2100,10 +2151,7 @@ To build grammar:
   (treemacs-filewatch-mode t)
   (treemacs-fringe-indicator-mode 'always)
   (when treemacs-python-executable
-    (treemacs-git-commit-diff-mode t))
-
-
-  )
+    (treemacs-git-commit-diff-mode t)))
 #+end_src
 
 ** vertico
@@ -2115,10 +2163,7 @@ To build grammar:
   (savehist-mode))
 
 (use-package vertico
-  ;; :hook
-  ;; (minibuffer-setup . 'vertico-repeat-save)
   :bind
-  ;; ("<leader>." . 'vertico-repeat)
   (:map vertico-map
         ("C-k" . 'vertico-next)
         ("C-j" . 'vertico-previous))
@@ -2213,31 +2258,24 @@ To build grammar:
   (lsp-auto-execute-action nil)
   (lsp-before-save-edits nil)
   (lsp-headerline-breadcrumb-enable nil)
+  (lsp-diagnostics-provider nil)
   :config
   (add-to-list 'lsp-language-id-configuration '(python-ts-mode . "python"))
   )
 #+end_src
 
-** lsp-ui
+** COMMENT lsp-ui
 
 #+begin_src emacs-lisp
 (use-package lsp-ui
   :hook
   (lsp-mode . lsp-ui-mode)
-  ;; :general
-  ;; (lsp-ui-peek-mode-map
-  ;;  :states 'normal
-  ;;  "C-j" 'lsp-ui-peek--select-next
-  ;;  "C-k" 'lsp-ui-peek--select-prev)
-  ;; (outline-mode-map
-  ;;  :states 'normal
-  ;;  "C-j" 'nil
-  ;;  "C-k" 'nil)
   :custom
   (lsp-ui-doc-show-with-cursor nil)
   (lsp-ui-doc-show-with-mouse nil)
   (lsp-ui-peek-always-show t)
   (lsp-ui-peek-fontify 'always)
+  (lsp-ui-sideline-enable nil)
   )
 #+end_src
 
@@ -2265,6 +2303,9 @@ To build grammar:
 #+end_src
 
 *** csv-mode
+:PROPERTIES:
+:ID:       13700741-D5F0-42DA-9C2F-9F16E1939C5E
+:END:
 
 #+begin_src emacs-lisp
 (use-package csv-mode
@@ -2323,16 +2364,9 @@ To build grammar:
 *** direnv
 
 #+begin_src emacs-lisp
-;; (use-package inheritenv)
-
 (use-package envrc
   :hook
   (python-mode python-ts-mode org-jupyter-mode))
-
-;; (use-package direnv
-;;  :vc (:fetcher "github" :repo "wyuenho/emacs-direnv" :rev "early-reliable-update-env")
-;;  :config
-;;  (direnv-mode))
 #+end_src
 
 *** lsp-pyright
@@ -2373,6 +2407,9 @@ To build grammar:
                             #+end_src
 
 *** dap-mode
+:PROPERTIES:
+:ID:       696CB40C-C156-4200-8765-2A5195019370
+:END:
 
 #+begin_src emacs-lisp
 (use-package dap-mode
@@ -2431,8 +2468,7 @@ To build grammar:
       (when-let
           (start-stop (alist-get feature-start-stop
                                  ;; <
-                                 dap-features->windows
-                                 ))
+                                 dap-features->windows))
         (funcall (car start-stop))))
     ;; display output buffer
     (save-excursion (dap-go-to-output-buffer t))
@@ -2464,17 +2500,11 @@ To build grammar:
   (require 'dap-ui)
   (setq dap-ui-buffer-configurations
         '(("*dap-ui-sessions*"
-           (side . bottom)
-           (slot . 1)
-           (window-height . 0.33))
+           (side . bottom) (slot . 1) (window-height . 0.33))
           ("*debug-window*"
-           (side . bottom)
-           (slot . 2)
-           (window-height . 0.33))
+           (side . bottom) (slot . 2) (window-height . 0.33))
           ("*dap-ui-repl*"
-           (side . bottom)
-           (slot . 3)
-           (window-height . 0.33))))
+           (side . bottom) (slot . 3) (window-height . 0.33))))
   (dap-ui-mode 1)
   ;; python virtualenv
   (require 'dap-python)
@@ -2519,6 +2549,9 @@ To build grammar:
 #+end_src
 
 *** jupyter
+:PROPERTIES:
+:ID:       FD007CD2-4FBE-4B84-9B21-64BC458DAA17
+:END:
 
 ~zmq~ installation:
 - Need to have ~automake~, ~autoconf~
@@ -2538,6 +2571,11 @@ Compile by hand:
 - In the REPL you can use =M-p= / =M-n= to navigate previous prompts
 
 #+begin_src emacs-lisp
+(use-package emacs
+  :init
+  (add-to-list 'native-comp-bootstrap-deny-list ".*jupyter.*")
+  (add-to-list 'native-comp-jit-compilation-deny-list ".*jupyter.*"))
+
 (use-package jupyter
   :vc (:fetcher "github" :repo "nnicandro/emacs-jupyter")
   :bind
@@ -2688,6 +2726,9 @@ Compile by hand:
 #+end_src
 
 *** Org jupyter mode
+:PROPERTIES:
+:ID:       C6B74718-A162-4F16-A39D-40F96AF90589
+:END:
 
 #+begin_src emacs-lisp
 (use-package emacs
@@ -2735,6 +2776,9 @@ Compile by hand:
 #+end_src
 
 *** scimax-jupyter
+:PROPERTIES:
+:ID:       DB6857A4-6F8F-4338-BB1A-3A5BC12700E4
+:END:
 
 Notes:
 - We can only load ~scimax-jupyter~ when we have ~jupyter~ on our ~PATH~.
@@ -2793,6 +2837,9 @@ Notes:
 #+end_src
 
 * Global keybindings
+:PROPERTIES:
+:ID:       07C0EE37-AD32-47E3-B859-8F6BDF48A45E
+:END:
 
 #+begin_src emacs-lisp
 (use-package evil
@@ -2823,6 +2870,7 @@ Notes:
     (kbd "<leader>lb")  'sp-forward-barf-sexp
     (kbd "<leader>ls")  'sp-forward-slurp-sexp
     (kbd "<leader>td")  'toggle-debug-on-error
+    (kbd "<leader>tf")  'auto-fill-mode
     (kbd "<leader>tl")  'display-line-numbers-mode
     ;; toggle wrapped lines
     (kbd "<leader>tw")  '(lambda () (interactive) (toggle-truncate-lines))

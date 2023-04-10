@@ -40,6 +40,20 @@
   :init
   (electric-indent-mode -1))
 
+(use-package bookmark
+  :ensure nil
+  :bind
+  ("<leader>rr" . 'bookmark-set)
+  ("<leader>rd" . 'bookmark-delete)
+  ("<leader>r1" . (lambda () (interactive) (bookmark-set "1")))
+  ("<leader>r2" . (lambda () (interactive) (bookmark-set "2")))
+  ("<leader>r3" . (lambda () (interactive) (bookmark-set "3")))
+  ("<leader>r4" . (lambda () (interactive) (bookmark-set "4")))
+  ("s-1" . (lambda () (interactive) (bookmark-jump "1")))
+  ("s-2" . (lambda () (interactive) (bookmark-jump "2")))
+  ("s-3" . (lambda () (interactive) (bookmark-jump "3")))
+  ("s-4" . (lambda () (interactive) (bookmark-jump "4"))))
+
 (use-package emacs
   :bind
   ("<leader>wo" . 'doom/window-enlargen)
@@ -185,11 +199,6 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
 
 (use-package emacs
   :init
-  (add-to-list 'native-comp-bootstrap-deny-list ".*jupyter.*")
-  (add-to-list 'native-comp-jit-compilation-deny-list ".*jupyter.*"))
-
-(use-package emacs
-  :init
   (unless (package-installed-p 'vc-use-package)
     (package-vc-install "https://github.com/slotThe/vc-use-package"))
   (require 'vc-use-package))
@@ -266,25 +275,12 @@ manual."
 
 (use-package emacs
   :init
-  (modify-all-frames-parameters
-   '((right-divider-width . 10)
-     (internal-border-width . 10)))
-  (defun lc/hide-divider-and-fringe ()
-    (dolist (face '(window-divider
-                    window-divider-first-pixel
-                    window-divider-last-pixel))
-      (face-spec-reset-face face)
-      (set-face-foreground face (face-attribute 'default :background)))
-    (set-face-background 'fringe (face-attribute 'default :background)))
-  ;; call it once at init time
-  (lc/hide-divider-and-fringe)
-  ;; call it every time the theme changes
-  (advice-add 'lc/modus-themes-toggle
-              :after (lambda () (interactive) (lc/hide-divider-and-fringe))))
-
-(use-package emacs
-  :init
   (setq crafted-startup-inhibit-splash t))
+
+(use-package all-the-icons
+  :config
+  (add-to-list 'all-the-icons-extension-icon-alist
+               '("eld" all-the-icons-fileicon "elisp" :height 1.0 :v-adjust -0.2 :face all-the-icons-purple)))
 
 (use-package all-the-icons-completion
   :if (display-graphic-p)
@@ -292,6 +288,13 @@ manual."
   :hook (marginalia-mode . all-the-icons-completion-marginalia-setup)
   :init
   (all-the-icons-completion-mode))
+
+(use-package all-the-icons-dired
+  :if (display-graphic-p)
+  :hook
+  (dired-mode . (lambda () (interactive)
+                  (unless (file-remote-p default-directory)
+                    (all-the-icons-dired-mode)))))
 
 (use-package doom-modeline
   :hook
@@ -338,7 +341,25 @@ manual."
   :bind
   ("<leader>t=" . (lambda () (interactive) (centered-cursor-mode 'toggle))))
 
+(use-package sideline-flymake
+  :vc (:fetcher "github" :repo "emacs-sideline/sideline-flymake")
+  :hook (flymake-mode . sideline-mode)
+  :init
+  ;; (setq sideline-display-backend-name t)
+  (setq sideline-flymake-display-mode 'line)
+  (setq sideline-backends-right '(sideline-flymake)))
+
+;; (use-package sideline-lsp
+;;   :vc (:fetcher "github" :repo "emacs-sideline/sideline-lsp")
+;;   :hook (lsp-mode . sideline-mode)
+;;   :init
+;;   (add-to-list 'sideline-backends-right 'sideline-lsp)
+;;   (setq sideline-lsp-update-mode 'line)
+;; )
+
 (use-package evil
+  :hook
+  (edebug-mode . (lambda () (require 'evil-collection-edebug) (evil-normalize-keymaps)))
   :custom
   (evil-want-C-u-scroll t)
   (evil-want-C-i-jump t)
@@ -628,8 +649,6 @@ be passed to EVAL-FUNC as its rest arguments"
 (use-package emacs
   :bind
   ("<leader>cb" . 'lc/gpt-complete-buffer-and-insert)
-  ("<leader>op" . (lambda () (interactive)
-                    (find-file-other-window lc/gpt-prompts-file)))
   (:map evil-visual-state-map
         ("<leader>cr" . 'lc/gpt-complete-region-and-insert)
         ("<leader>cp" . 'lc/gpt-complete-with-prompt-prefix-and-insert))
@@ -656,8 +675,8 @@ be passed to EVAL-FUNC as its rest arguments"
         :type "POST"
         :data (json-encode `((,prompt-key . ,prompt-or-messages)
                              ("model"  . ,lc/gpt-model)
+                             ("temperature" . ,lc/gpt-temperature)
                              ;; ("max_tokens" . ,lc/gpt-max-output-tokens)
-                             ;; ("temperature" . ,lc/gpt-temperature)
                              ;; ("frequency_penalty" . ,lc/gpt-frequency-penalty)
                              ;; ("presence_penalty" . ,lc/gpt-presence-penalty)
                              ;; ("top_p" . ,lc/gpt-top-p)
@@ -708,18 +727,18 @@ be passed to EVAL-FUNC as its rest arguments"
     "Send the region to OpenAI and insert the result to the end of buffer. "
     (interactive "r")
     (let* ((prompt (buffer-substring-no-properties start end))
-          (messages `[(("role"    . "user") ("content" . ,prompt))])
-          (chat-model (eq lc/gpt-model 'gpt-3.5-turbo-0301)))
+           (messages `[(("role"    . "user") ("content" . ,prompt))])
+           (chat-model (eq lc/gpt-model 'gpt-3.5-turbo-0301)))
       (lc/gpt-complete-and-insert (if chat-model messages prompt))))
 
-    (defun lc/gpt-complete-buffer-and-insert ()
-      "Send the ENTIRE buffer, up to max tokens, to OpenAI and insert the result to the end of buffer."
-      (interactive)
-      (let ((prompt (buffer-substring-no-properties (point-min) (point-max))))
-        (lc/gpt-complete-and-insert prompt)))
+  (defun lc/gpt-complete-buffer-and-insert ()
+    "Send the ENTIRE buffer, up to max tokens, to OpenAI and insert the result to the end of buffer."
+    (interactive)
+    (let ((prompt (buffer-substring-no-properties (point-min) (point-max))))
+      (lc/gpt-complete-and-insert prompt)))
 
-    :config
-    (require 'request))
+  :config
+  (require 'request))
 
 (use-package emacs
   :bind
@@ -834,9 +853,14 @@ be passed to EVAL-FUNC as its rest arguments"
   :bind
   ("s-g" . 'chatgpt-shell)
   ("s-d" . 'dall-e-shell)
-  :init
-  (setq chatgpt-shell-openai-key (auth-source-pick-first-password :host "chat.openai.com"))
-  (setq chatgpt-shell-chatgpt-model-version "gpt-3.5-turbo-0301")
+  ("<leader>op" . (lambda () (interactive)
+                    (require 'ob-chatgpt-shell)
+                    (ob-chatgpt-shell-setup)
+                    (find-file-other-window lc/gpt-prompts-file)))
+  :custom
+  (chatgpt-shell-chatgpt-streaming t)
+  (chatgpt-shell-chatgpt-model-version "gpt-3.5-turbo-0301")
+  (chatgpt-shell-openai-key (lambda () (auth-source-pick-first-password :host "chat.openai.com")))
   )
 
 (use-package copilot
@@ -973,12 +997,12 @@ be passed to EVAL-FUNC as its rest arguments"
   (:map org-mode-map
         ("<localleader>a" . 'org-archive-subtree)
         ("<localleader>i" . 'org-insert-structure-template)
-        ("<visual-state><localleader>l" . 'org-insert-link)
-        ("<normal-state><localleader>ll" . 'org-insert-link)
-        ("<normal-state><localleader>ls" . 'org-store-link)
+        ("<localleader>ll" . 'org-insert-link)
+        ("<localleader>ls" . 'org-store-link)
         ("<localleader>L" . (lambda () (interactive) (org-latex-preview)))
         ("<localleader>n" . 'org-toggle-narrow-to-subtree)
         ("<localleader>r" . 'org-refile)
+        ("<localleader>t" . 'org-todo)
         ("<localleader>x" . 'org-toggle-checkbox)
         ("<normal-state><localleader>el" . 'eros-eval-last-sexp)
         ("<visual-state><localleader>e" . 'eros-eval-last-sexp)
@@ -990,8 +1014,8 @@ be passed to EVAL-FUNC as its rest arguments"
   (org-src-tab-acts-natively t)
   ;; (org-startup-indented t)
   (org-hide-emphasis-markers t)
-  ;; (org-hide-leading-stars t)
-  (org-catch-invisible-edits 'smart)
+  (org-catch-invisible-edits 'error)
+  (org-link-descriptive nil)
   (org-pretty-entities t)
   (org-ellipsis "…")
   (org-insert-heading-respect-content t)
@@ -1014,8 +1038,8 @@ be passed to EVAL-FUNC as its rest arguments"
             (org-cycle-internal-local)
             t)))))
   :config
-  (remove-hook 'org-mode-hook 'org-appear-mode)
-  ;; (add-to-list 'org-src-lang-modes '("jupyter-python" . python-ts))
+  (with-eval-after-load 'org-appear
+    (setq org-appear-autolinks t))
   (plist-put org-format-latex-options :background "Transparent")
   (plist-put org-format-latex-options :scale 1.4)
   ;; Only fold the current tree, rather than recursively
@@ -1055,6 +1079,7 @@ be passed to EVAL-FUNC as its rest arguments"
         (org-map-entries (lambda () (lc/org-custom-id-get (point) 'create))))))
   :config
   (require 'org-id)
+  (setq org-id-track-globally nil)
   (setq org-id-link-to-org-use-id 'create-if-interactive-and-no-custom-id)
   )
 
@@ -1096,8 +1121,6 @@ be passed to EVAL-FUNC as its rest arguments"
         ("<localleader>z" . 'org-babel-hide-result-toggle))
   (:map org-src-mode-map
         ("<localleader>." . 'org-edit-src-exit))
-  ;; :hook
-  ;; ((prog-mode org-mode) . (lambda () (setq indent-line-function #'(lambda () 'noindent))))
   :custom
   (org-confirm-babel-evaluate nil)
   (org-src-ask-before-returning-to-edit-buffer nil)
@@ -1107,60 +1130,40 @@ be passed to EVAL-FUNC as its rest arguments"
    'org-babel-load-languages
    '((emacs-lisp . t)
      ;; (clojure . t)
-     ;; (ledger . t)
      (shell . t)))
-  (add-hook 'org-babel-after-execute-hook 'org-display-inline-images 'append)
-  )
+  (add-hook 'org-babel-after-execute-hook 'org-display-inline-images 'append))
 
 ;; (use-package ob-async
 ;;   :hook (org-load . (lambda () (require 'ob-async)))
 ;;   :custom
 ;;   (ob-async-no-async-languages-alist '("jupyter-python" "jupyter-R" "jupyter-julia")))
 
+;; add frame borders to show code block "line"
+(use-package emacs
+  :init
+  (modify-all-frames-parameters
+   '((right-divider-width . 10)
+     (internal-border-width . 10)))
+  (defun lc/hide-divider-and-fringe ()
+    (dolist (face '(window-divider
+                    window-divider-first-pixel
+                    window-divider-last-pixel))
+      (face-spec-reset-face face)
+      (set-face-foreground face (face-attribute 'default :background)))
+    (set-face-background 'fringe (face-attribute 'default :background)))
+  ;; call it once at init time
+  (lc/hide-divider-and-fringe)
+  ;; call it every time the theme changes
+  (advice-add 'lc/modus-themes-toggle
+              :after (lambda () (interactive) (lc/hide-divider-and-fringe))))
+
 (use-package org-modern
   :hook
   (org-mode . org-modern-mode))
 
-(use-package org-html-themify
-  :vc (:fetcher "github" :repo "DogLooksGood/org-html-themify")
-  ;; :hook (org-mode . org-html-themify-mode)
-  :config
-  (use-package hexrgb
-    :vc (:fetcher "github" :repo "emacsmirror/hexrgb")
-    :demand t)
-  ;; otherwise it complains about invalid face
-  (require 'hl-line)
-  (setq org-html-themify-themes
-        '((light . modus-operandi)
-          (dark . modus-operandi)))
-  (setq org-export-backends '(html)))
-
-(use-package bookmark
-  :ensure nil
-  :bind
-  ("<leader>rr" . 'bookmark-set)
-  ("<leader>rd" . 'bookmark-delete)
-  ("<leader>r1" . (lambda () (interactive) (bookmark-set "1")))
-  ("<leader>r2" . (lambda () (interactive) (bookmark-set "2")))
-  ("<leader>r3" . (lambda () (interactive) (bookmark-set "3")))
-  ("<leader>r4" . (lambda () (interactive) (bookmark-set "4")))
-  ("s-1" . (lambda () (interactive) (bookmark-jump "1")))
-  ("s-2" . (lambda () (interactive) (bookmark-jump "2")))
-  ("s-3" . (lambda () (interactive) (bookmark-jump "3")))
-  ("s-4" . (lambda () (interactive) (bookmark-jump "4")))
-  ;; ("s-1" . (lambda () (interactive) (jump-to-numbered-bookmark 0)))
-  ;; ("s-2" . (lambda () (interactive) (jump-to-numbered-bookmark 1)))
-  ;; ("s-3" . (lambda () (interactive) (jump-to-numbered-bookmark 2)))
-  ;; ("s-4" . (lambda () (interactive) (jump-to-numbered-bookmark 3)))
-  :preface
-  (defun jump-to-numbered-bookmark (num)
-    "Jump to the bookmark with the given numeric prefix."
-    (interactive)
-    (when-let ((bookmark (nth num bookmark-alist)))
-      (find-file (bookmark-get-filename bookmark))))
-  ;; :config
-  ;; (add-hook 'bookmark-bmenu-mode-hook #'hl-line-mode)
-  )
+(use-package org-fragtog
+  :hook
+  (org-mode))
 
 (use-package consult
   :bind
@@ -1237,7 +1240,6 @@ be passed to EVAL-FUNC as its rest arguments"
                     (find-file (concat denote-directory "/todo.org"))))
   :custom
   (denote-known-keywords '())
-  (lc/gpt-prompts-file (concat denote-directory "/20230330T145824--useful-gpt-prompts__llm_org.org"))
   :preface
   (defun lc/denote-org-extract-subtree ()
     "Create new Denote note using current Org subtree. Delete the original subtree."
@@ -1257,10 +1259,11 @@ be passed to EVAL-FUNC as its rest arguments"
      '("journal"))) ; multiple keywords are a list of strings: '("one" "two")
   :init
   (setq denote-directory "/Users/cambiaghiluca/OneDrive - The Boston Consulting Group, Inc/Documents/denote")
+  (setq lc/gpt-prompts-file (concat denote-directory "/20230330T145824--useful-gpt-prompts__llm_org.org"))
 
   (with-eval-after-load 'org
     (setq org-directory denote-directory)
-    (setq org-agenda-files (directory-files-recursively denote-directory "\\.org$")))
+    (setq org-agenda-files (directory-files-recursively denote-directory "\\todo.org$")))
   )
 
 (use-package denote-menu
@@ -1317,13 +1320,6 @@ be passed to EVAL-FUNC as its rest arguments"
     (evil-collection-define-key 'normal 'dired-mode-map
       "i" 'dired-subtree-toggle)))
 
-(use-package all-the-icons-dired
-  :if (display-graphic-p)
-  :hook
-  (dired-mode . (lambda () (interactive)
-                  (unless (file-remote-p default-directory)
-                    (all-the-icons-dired-mode)))))
-
 (use-package embark
   :bind
   ("C-l" . 'embark-act)
@@ -1347,22 +1343,15 @@ be passed to EVAL-FUNC as its rest arguments"
      (max (point) (mark))))
   )
 
-  (use-package flymake
-    :ensure nil
-    :hook (((python-base-mode emacs-lisp-mode) . flymake-mode)
-           ;; (lsp-managed-mode . (lambda () (cond ((derived-mode-p 'python-base-mode)
-           ;;                                       (add-hook 'flymake-diagnostic-functions 'python-flymake nil t))
-           ;;                                      ;; if not adding diagnostic functions to other modes just use an if
-           ;;                                      ;; ...
-           ;;                                      (t nil))))
-           )
+(use-package flymake
+  :ensure nil
+  :bind
+  ("<leader>!j" . 'flymake-goto-next-error)
+  ("<leader>!k" . 'flymake-goto-prev-error)
+  :hook
+  (python-base-mode emacs-lisp-mode)
   :custom
-  (flymake-fringe-indicator-position 'right-fringe)
-  ;; (python-flymake-command '("ruff" "--quiet" "--stdin-filename=stdin" "-"))
-                          ;; :general
-                          ;; (general-nmap "] !" 'flymake-goto-next-error)
-                          ;; (general-nmap "[ !" 'flymake-goto-prev-error)
-  )
+  (flymake-fringe-indicator-position 'right-fringe))
 
 (use-package hydra
   :after evil
@@ -1511,8 +1500,7 @@ be passed to EVAL-FUNC as its rest arguments"
   (:map evil-treemacs-state-map
         ("SPC" . evil-send-leader))
   :config
-  (use-package treemacs-evil
-    :demand t)
+  (use-package treemacs-evil :demand t)
   (use-package treemacs-tab-bar
     :demand t
     :config
@@ -1521,10 +1509,7 @@ be passed to EVAL-FUNC as its rest arguments"
   (treemacs-filewatch-mode t)
   (treemacs-fringe-indicator-mode 'always)
   (when treemacs-python-executable
-    (treemacs-git-commit-diff-mode t))
-
-
-  )
+    (treemacs-git-commit-diff-mode t)))
 
 (use-package savehist
   :ensure nil
@@ -1532,10 +1517,7 @@ be passed to EVAL-FUNC as its rest arguments"
   (savehist-mode))
 
 (use-package vertico
-  ;; :hook
-  ;; (minibuffer-setup . 'vertico-repeat-save)
   :bind
-  ;; ("<leader>." . 'vertico-repeat)
   (:map vertico-map
         ("C-k" . 'vertico-next)
         ("C-j" . 'vertico-previous))
@@ -1599,27 +1581,9 @@ be passed to EVAL-FUNC as its rest arguments"
   (lsp-auto-execute-action nil)
   (lsp-before-save-edits nil)
   (lsp-headerline-breadcrumb-enable nil)
+  (lsp-diagnostics-provider nil)
   :config
   (add-to-list 'lsp-language-id-configuration '(python-ts-mode . "python"))
-  )
-
-(use-package lsp-ui
-  :hook
-  (lsp-mode . lsp-ui-mode)
-  ;; :general
-  ;; (lsp-ui-peek-mode-map
-  ;;  :states 'normal
-  ;;  "C-j" 'lsp-ui-peek--select-next
-  ;;  "C-k" 'lsp-ui-peek--select-prev)
-  ;; (outline-mode-map
-  ;;  :states 'normal
-  ;;  "C-j" 'nil
-  ;;  "C-k" 'nil)
-  :custom
-  (lsp-ui-doc-show-with-cursor nil)
-  (lsp-ui-doc-show-with-mouse nil)
-  (lsp-ui-peek-always-show t)
-  (lsp-ui-peek-fontify 'always)
   )
 
 (use-package clojure-mode)
@@ -1684,16 +1648,9 @@ be passed to EVAL-FUNC as its rest arguments"
             do (font-lock-add-keywords nil `((,r (1 '(face (:foreground ,c)))))))))
   )
 
-;; (use-package inheritenv)
-
 (use-package envrc
   :hook
   (python-mode python-ts-mode org-jupyter-mode))
-
-;; (use-package direnv
-;;  :vc (:fetcher "github" :repo "wyuenho/emacs-direnv" :rev "early-reliable-update-env")
-;;  :config
-;;  (direnv-mode))
 
 (use-package lsp-pyright
   :hook
@@ -1784,8 +1741,7 @@ be passed to EVAL-FUNC as its rest arguments"
       (when-let
           (start-stop (alist-get feature-start-stop
                                  ;; <
-                                 dap-features->windows
-                                 ))
+                                 dap-features->windows))
         (funcall (car start-stop))))
     ;; display output buffer
     (save-excursion (dap-go-to-output-buffer t))
@@ -1817,17 +1773,11 @@ be passed to EVAL-FUNC as its rest arguments"
   (require 'dap-ui)
   (setq dap-ui-buffer-configurations
         '(("*dap-ui-sessions*"
-           (side . bottom)
-           (slot . 1)
-           (window-height . 0.33))
+           (side . bottom) (slot . 1) (window-height . 0.33))
           ("*debug-window*"
-           (side . bottom)
-           (slot . 2)
-           (window-height . 0.33))
+           (side . bottom) (slot . 2) (window-height . 0.33))
           ("*dap-ui-repl*"
-           (side . bottom)
-           (slot . 3)
-           (window-height . 0.33))))
+           (side . bottom) (slot . 3) (window-height . 0.33))))
   (dap-ui-mode 1)
   ;; python virtualenv
   (require 'dap-python)
@@ -1865,6 +1815,11 @@ be passed to EVAL-FUNC as its rest arguments"
 (use-package flymake-ruff
   :hook
   (python-base-mode . flymake-ruff-load))
+
+(use-package emacs
+  :init
+  (add-to-list 'native-comp-bootstrap-deny-list ".*jupyter.*")
+  (add-to-list 'native-comp-jit-compilation-deny-list ".*jupyter.*"))
 
 (use-package jupyter
   :vc (:fetcher "github" :repo "nnicandro/emacs-jupyter")
@@ -2058,6 +2013,7 @@ be passed to EVAL-FUNC as its rest arguments"
     (kbd "<leader>lb")  'sp-forward-barf-sexp
     (kbd "<leader>ls")  'sp-forward-slurp-sexp
     (kbd "<leader>td")  'toggle-debug-on-error
+    (kbd "<leader>tf")  'auto-fill-mode
     (kbd "<leader>tl")  'display-line-numbers-mode
     ;; toggle wrapped lines
     (kbd "<leader>tw")  '(lambda () (interactive) (toggle-truncate-lines))
