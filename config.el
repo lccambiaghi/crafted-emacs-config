@@ -7,10 +7,13 @@
 
 (use-package emacs
   :init
-  (defvar user-config-directory crafted-config-path)
+  (defvar lc/config-directory crafted-config-path)
   (defvar lc/use-xwidget-browser t)
+  (defvar lc/light-theme 'modus-operandi)
+  (defvar lc/dark-theme 'modus-vivendi)
   ;; fix void-variable in some packages e.g. helpful
-  (defvar read-symbol-positions-list nil))
+  (defvar read-symbol-positions-list nil)
+)
 
 (use-package emacs
   :hook
@@ -218,7 +221,7 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
         modus-themes-bold-constructs nil)
 
   ;; define some palette overrides
-  (defun lc/override-colors ()
+  (defun lc/override-modus-themes-colors ()
     (setq modus-themes-operandi-color-overrides
           '((bg-main . "#fefcf4")
             (bg-dim . "#faf6ef")
@@ -246,32 +249,8 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
             (bg-tab-inactive . "#3a3a5a")
             (fg-unfocused . "#9a9aab"))))
 
-  (lc/override-colors)
-
-  ;; first turn off the deeper-blue theme
-  (disable-theme 'deeper-blue)
-  ;; poor man's way of checking the hour when emacs is started
-  (if (and (< (string-to-number (format-time-string "%H")) ;; >
-              19)
-           (not (< (string-to-number (format-time-string "%H")) 6 ;; >
-                   )))
-      ;; light theme
-      (load-theme 'modus-operandi :no-confim)
-    ;; dark theme
-    (load-theme 'modus-vivendi :no-confim))
-
-  (defun lc/modus-themes-toggle ()
-    "Toggle between `modus-operandi' and `modus-vivendi' themes.
-This uses `enable-theme' instead of the standard method of
-`load-theme'.  The technicalities are covered in the Modus themes
-manual."
-    (interactive)
-    (pcase (modus-themes--current-theme)
-      ('modus-operandi (progn (disable-theme 'modus-operandi)
-                              (load-theme 'modus-vivendi :no-confirm)))
-      ('modus-vivendi (progn (disable-theme 'modus-vivendi)
-                             (load-theme 'modus-operandi :no-confirm)))
-      (_ (error "No Modus theme is loaded; evaluate `modus-themes-load-themes' first")))))
+  (lc/override-modus-themes-colors)
+)
 
 (use-package emacs
   :init
@@ -295,6 +274,41 @@ manual."
   (dired-mode . (lambda () (interactive)
                   (unless (file-remote-p default-directory)
                     (all-the-icons-dired-mode)))))
+
+(use-package dashboard
+  :bind
+  ("<leader>TAB h" . 'lc/go-to-dashboard)
+  :preface
+  (defun linum-mode (_) )
+  (defun lc/dashboard-insert-projects (list-size)
+    (dashboard-insert-section
+     "Projects:"
+     (mapcar (lambda (l) (car l)) (dashboard-subseq project--list 0 list-size))
+     list-size
+     "p"
+     `(lambda (&rest ignore) (tabspaces-open-or-create-project-and-workspace ,el))
+     (abbreviate-file-name el)))
+  (defun lc/go-to-dashboard ()
+    (interactive)
+    (kill-buffer dashboard-buffer-name)
+    (tabspaces-switch-or-create-workspace "Home")
+    (dashboard-insert-startupify-lists)
+    (switch-to-buffer dashboard-buffer-name))
+  :init
+  (setq dashboard-set-heading-icons t)
+  (setq dashboard-set-file-icons t)
+  (setq dashboard-items
+        '((recents  . 5)
+          ;; (bookmarks . 5)
+          (projects . 5)
+          (agenda . 5)
+          ;; (registers . 5)
+          ))
+  (setq dashboard-set-footer nil)
+  (setq dashboard-filter-agenda-entry 'dashboard-no-filter-agenda)
+  ;; (setq dashboard-match-agenda-entry nil)
+  (advice-add 'dashboard-insert-projects :override #'lc/dashboard-insert-projects)
+  (dashboard-setup-startup-hook))
 
 (use-package doom-modeline
   :hook
@@ -356,6 +370,42 @@ manual."
 ;;   (add-to-list 'sideline-backends-right 'sideline-lsp)
 ;;   (setq sideline-lsp-update-mode 'line)
 ;; )
+
+(use-package emacs
+  :bind
+  ("<leader>tt" . 'lc/light-dark-theme-toggle)
+  :init
+  ;; first turn off the deeper-blue theme
+  (disable-theme 'deeper-blue)
+  ;; poor man's way of checking the hour when emacs is started
+  (if (and (< (string-to-number (format-time-string "%H")) ;; >
+              19)
+           (not (< (string-to-number (format-time-string "%H")) 6 ;; >
+                   )))
+      ;; light theme
+      (load-theme lc/light-theme :no-confim)
+    ;; dark theme
+    (load-theme lc/dark-theme :no-confim))
+
+  (defun lc/light-dark-theme-toggle ()
+    (interactive)
+    (pcase (car custom-enabled-themes)
+      (lc/light-theme (progn (disable-theme lc/light-theme) (load-theme lc/dark-theme :no-confirm)))
+      (lc/dark-theme (progn (disable-theme lc/dark-theme) (load-theme lc/light-theme :no-confirm)))
+      (_ (error "No Modus theme is loaded; evaluate `modus-themes-load-themes' first"))))
+
+  (defun lc/light-dark-theme-toggle ()
+  (interactive)
+  (pcase (car custom-enabled-themes)
+    (`(,theme . _) (if (eq theme lc/light-theme)
+                        (progn
+                          (disable-theme lc/light-theme)
+                          (load-theme lc/dark-theme :no-confirm))
+                      (progn
+                        (disable-theme lc/dark-theme)
+                        (load-theme lc/light-theme :no-confirm))))
+    (_ (error "No theme is loaded, load a theme first"))))
+  )
 
 (use-package evil
   :hook
@@ -853,15 +903,18 @@ be passed to EVAL-FUNC as its rest arguments"
   :bind
   ("s-g" . 'chatgpt-shell)
   ("s-d" . 'dall-e-shell)
-  ("<leader>op" . (lambda () (interactive)
-                    (require 'ob-chatgpt-shell)
-                    (ob-chatgpt-shell-setup)
-                    (find-file-other-window lc/gpt-prompts-file)))
+  ("<leader>op" . lc/open-prompts-file)
   :custom
   (chatgpt-shell-chatgpt-streaming t)
   (chatgpt-shell-chatgpt-model-version "gpt-3.5-turbo-0301")
   (chatgpt-shell-openai-key (lambda () (auth-source-pick-first-password :host "chat.openai.com")))
-  )
+  :preface
+  (defun lc/open-prompts-file ()
+    (interactive)
+    (unless (member '(chatgpt-shell . t) org-babel-load-languages)
+      (require 'ob-chatgpt-shell)
+      (ob-chatgpt-shell-setup))
+    (find-file-other-window lc/gpt-prompts-file)))
 
 (use-package copilot
   :vc (:fetcher "github" :repo "zerolfx/copilot.el")
@@ -1048,35 +1101,6 @@ be passed to EVAL-FUNC as its rest arguments"
 
 (use-package org
   :preface
-  (defun lc/org-custom-id-get (&optional pom create prefix)
-    "Get the CUSTOM_ID property of the entry at point-or-marker POM.
-   If POM is nil, refer to the entry at point. If the entry does
-   not have an CUSTOM_ID, the function returns nil. However, when
-   CREATE is non nil, create a CUSTOM_ID if none is present
-   already. PREFIX will be passed through to `org-id-new'. In any
-   case, the CUSTOM_ID of the entry is returned."
-    (interactive)
-    (org-with-point-at pom
-      (let ((id (org-entry-get nil "CUSTOM_ID")))
-        (cond
-         ((and id (stringp id) (string-match "\\S-" id))
-          id)
-         (create
-          (setq id (org-id-new (concat prefix "h")))
-          (org-entry-put pom "CUSTOM_ID" id)
-          (org-id-add-location id (buffer-file-name (buffer-base-buffer)))
-          id)))))
-  (defun lc/org-add-ids-to-headlines-in-file ()
-    "Add CUSTOM_ID properties to all headlines in the current
-   file which do not already have one. Only adds ids if the
-   `auto-id' option is set to `t' in the file somewhere. ie,
-   #+OPTIONS: auto-id:t"
-    (interactive)
-    (save-excursion
-      (widen)
-      (goto-char (point-min))
-      (when (re-search-forward "^#\\+OPTIONS:.*auto-id:t" 10000 t)
-        (org-map-entries (lambda () (lc/org-custom-id-get (point) 'create))))))
   :config
   (require 'org-id)
   (setq org-id-track-globally nil)
@@ -1320,6 +1344,28 @@ be passed to EVAL-FUNC as its rest arguments"
     (evil-collection-define-key 'normal 'dired-mode-map
       "i" 'dired-subtree-toggle)))
 
+(use-package eat
+  :vc (:fetcher "codeberg" :repo "akib/emacs-eat")
+  :hook
+  (eshell-load . 'eat-eshell-mode)
+  :bind
+  ("<leader>'" . 'lc/eshell-toggle)
+  (:map eat-mode-map
+        ("]]" . 'eat-previous-shell-prompt)
+        ("[[" . 'eat-next-shell-prompt)
+        )
+  :preface
+  (defun lc/eshell-toggle ()
+    "Open or switch to an eshell buffer in the other window"
+    (interactive)
+    (if (get-buffer "*eshell*")
+        (switch-to-buffer-other-window "*eshell*")
+      (progn
+        (split-window-horizontally)
+        (other-window 1)
+        (eshell))))
+  )
+
 (use-package embark
   :bind
   ("C-l" . 'embark-act)
@@ -1402,7 +1448,7 @@ be passed to EVAL-FUNC as its rest arguments"
 (use-package tempel
   :custom
   (tempel-trigger-prefix "<")
-  (tempel-path (concat user-config-directory "/templates.eld"))
+  (tempel-path (concat lc/config-directory "/templates.eld"))
   :hook
   ((prog-mode org-mode) . tempel-setup-capf)
   :preface
@@ -1434,7 +1480,7 @@ be passed to EVAL-FUNC as its rest arguments"
   ("<leader>TAB l" . 'tab-bar-switch-to-next-tab)
   ("<leader>oc" . (lambda () (interactive)
                          (tabspaces-switch-or-create-workspace "crafted-emacs")
-                         (find-file (concat user-config-directory "/readme.org"))))
+                         (find-file (concat lc/config-directory "/readme.org"))))
   :custom
   (tabspaces-use-filtered-buffers-as-default t)
   (tabspaces-default-tab "Default")
@@ -1526,22 +1572,6 @@ be passed to EVAL-FUNC as its rest arguments"
   :custom
   (vertico-resize t)
   )
-
-(use-package vterm
-  :bind
-  (:map vterm-mode-map
-        ("<insert-state> M-l" . 'vterm-send-right)
-        ("<insert-state> M-h" . 'vterm-send-left))
-  :custom
-  ;; (vterm-shell (executable-find "fish"))
-  (vterm-shell (executable-find "zsh"))
-  (vterm-max-scrollback 10000))
-
-(use-package vterm-toggle
-  :bind
-  ("<leader>'" . 'vterm-toggle)
-  :custom
-  (vterm-toggle-scope 'project))
 
 (use-package xwwp-full
   :vc (:fetcher "github" :repo "kchanqvq/xwwp")
@@ -1953,12 +1983,6 @@ be passed to EVAL-FUNC as its rest arguments"
   :hook
   (envrc-mode . lc/init-jupyter)
   :preface
-  (defun lc/replace-in-alist (input key new_value)
-    (mapcar (lambda (pair)
-              (if (equal (car pair) key)
-                  (cons (car pair) new_value)
-                pair))
-            input))
   (defun lc/init-jupyter ()
     (interactive)
     ;; only try to load in org-mode
@@ -1968,10 +1992,7 @@ be passed to EVAL-FUNC as its rest arguments"
         ;; only load if jupyter is available
         (if (executable-find "jupyter")
             (with-no-warnings
-              (require 'scimax-jupyter)
-              ;; (setq org-src-lang-modes
-              ;;       (lc/replace-in-alist org-src-lang-modes "jupyter-python" 'python-ts))
-              )
+              (require 'scimax-jupyter))
           (message "could not initialize scimax-jupyter!")))))
   :init
   (defun scimax-jupyter-get-session ()
@@ -2017,7 +2038,6 @@ be passed to EVAL-FUNC as its rest arguments"
     (kbd "<leader>tl")  'display-line-numbers-mode
     ;; toggle wrapped lines
     (kbd "<leader>tw")  '(lambda () (interactive) (toggle-truncate-lines))
-    (kbd "<leader>tt")  'lc/modus-themes-toggle
     (kbd "<leader>tm")  'toggle-frame-maximized
     (kbd "<leader>u")  'universal-argument
     (kbd "<leader>wd")  'delete-window
