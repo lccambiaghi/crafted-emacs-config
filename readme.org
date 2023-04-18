@@ -3,7 +3,7 @@
 #+DATE: <2023-03-23>
 #+AUTHOR: Luca Cambiaghi
 #+PROPERTY: header-args:emacs-lisp :tangle ./config.el :mkdirp yes
-#+STARTUP: show3levels
+#+STARTUP: show2levels
 #+OPTIONS: toc:nil num:nil ^:nil
 
 * About this config
@@ -102,7 +102,10 @@ In order of appearance in my config:
   (defvar lc/dark-theme 'modus-vivendi)
   ;; fix void-variable in some packages e.g. helpful
   (defvar read-symbol-positions-list nil)
-)
+  (defvar lc/use-lambda-line nil)
+  (defvar lc/use-lambda-theme nil)
+  (defvar lc/copilot-enabled nil)
+  )
 #+end_src
 
 ** Helper for tangling
@@ -383,6 +386,7 @@ Note:
 
 #+begin_src emacs-lisp
 (use-package emacs
+  :if (not lc/use-lambda-theme)
   :init
   (require-theme 'modus-themes)
 
@@ -422,7 +426,9 @@ Note:
             (fg-unfocused . "#9a9aab"))))
 
   (lc/override-modus-themes-colors)
-)
+  (setq lc/light-theme 'modus-operandi)
+  (setq lc/dark-theme 'modus-vivendi)
+  )
 #+end_src
 
 ** Inhibit startup screen
@@ -439,10 +445,17 @@ Note:
 (use-package all-the-icons
   :config
   (add-to-list 'all-the-icons-extension-icon-alist
-               '("eld" all-the-icons-fileicon "elisp" :height 1.0 :v-adjust -0.2 :face all-the-icons-purple)))
+               '("eld" all-the-icons-fileicon "elisp" :face all-the-icons-purple))
+  (add-to-list 'all-the-icons-extension-icon-alist
+               '("edn" all-the-icons-fileicon "elisp" :face all-the-icons-purple))
+  (add-to-list 'all-the-icons-extension-icon-alist
+               '("lock" all-the-icons-fileicon "nix" :face all-the-icons-blue))
+  (add-to-list 'all-the-icons-extension-icon-alist
+               '("toml" all-the-icons-alltheicon "python" :face all-the-icons-dblue))
+)
 #+end_src
 
-** all-the-icons completion
+** COMMENT all-the-icons completion
 
 #+begin_src emacs-lisp
 (use-package all-the-icons-completion
@@ -507,6 +520,7 @@ Note:
 
 #+begin_src emacs-lisp
 (use-package doom-modeline
+  :if (not lc/use-lambda-line)
   :hook
   (after-init . doom-modeline-mode)
   :custom
@@ -516,6 +530,41 @@ Note:
   (doom-modeline-workspace-name nil)
   ;; (doom-modeline-project-detection 'projectile)
   ;; (doom-modeline-buffer-file-name-style 'relative-to-project)
+  )
+#+end_src
+
+** lambda line
+
+#+begin_src emacs-lisp
+(use-package lambda-line
+  :after (all-the-icons)
+  :if lc/use-lambda-line
+  :vc (:fetcher "github" :repo "lambda-emacs/lambda-line")
+  :custom
+  (lambda-line-icon-time t) ;; requires ClockFace font (see below)
+  (lambda-line-clockface-update-fontset "ClockFaceRect") ;; set clock icon
+  (lambda-line-position 'bottom) ;; Set position of status-line
+  (lambda-line-abbrev t) ;; abbreviate major modes
+  (lambda-line-hspace "  ")  ;; add some cushion
+  (lambda-line-prefix t) ;; use a prefix symbol
+  (lambda-line-prefix-padding nil) ;; no extra space for prefix
+  (lambda-line-status-invert nil)  ;; no invert colors
+  (lambda-line-gui-ro-symbol  " ⨂") ;; symbols
+  (lambda-line-gui-mod-symbol " ⬤")
+  (lambda-line-gui-rw-symbol  " ◯")
+  (lambda-line-space-top +.50)  ;; padding on top and bottom of line
+  (lambda-line-space-bottom -.50)
+  (lambda-line-symbol-position 0.1) ;; adjust the vertical placement of symbol
+  :init
+  ;; activate lambda-line
+  (lambda-line-mode)
+  ;; set divider line in footer
+  (when (eq lambda-line-position 'top)
+    (setq-default mode-line-format (list "%_"))
+    (setq mode-line-format (list "%_")))
+  (customize-set-variable 'flymake-mode-line-counter-format '("" flymake-mode-line-error-counter flymake-mode-line-warning-counter flymake-mode-line-note-counter ""))
+  (customize-set-variable 'flymake-mode-line-format '(" " flymake-mode-line-exception flymake-mode-line-counters))
+  (lambda-line-visual-bell-config)
   )
 #+end_src
 
@@ -640,6 +689,22 @@ Note:
   )
 #+end_src
 
+** lambda themes
+
+#+begin_src emacs-lisp
+(use-package lambda-themes
+  :if lc/use-lambda-theme
+  :vc (:fetcher "github" :repo "lambda-emacs/lambda-themes")
+  :custom
+  (lambda-themes-set-italic-comments t)
+  (lambda-themes-set-italic-keywords t)
+  (lambda-themes-set-variable-pitch t)
+  :init
+  ;; load preferred theme
+  (setq lc/light-theme 'lambda-light)
+  (setq lc/dark-theme 'lambda-dark))
+#+end_src
+
 ** Load theme and toggle light/dark theme
 
 #+begin_src emacs-lisp
@@ -661,22 +726,11 @@ Note:
 
   (defun lc/light-dark-theme-toggle ()
     (interactive)
-    (pcase (car custom-enabled-themes)
-      (lc/light-theme (progn (disable-theme lc/light-theme) (load-theme lc/dark-theme :no-confirm)))
-      (lc/dark-theme (progn (disable-theme lc/dark-theme) (load-theme lc/light-theme :no-confirm)))
-      (_ (error "No Modus theme is loaded; evaluate `modus-themes-load-themes' first"))))
-
-  (defun lc/light-dark-theme-toggle ()
-  (interactive)
-  (pcase (car custom-enabled-themes)
-    (`(,theme . _) (if (eq theme lc/light-theme)
-                        (progn
-                          (disable-theme lc/light-theme)
-                          (load-theme lc/dark-theme :no-confirm))
-                      (progn
-                        (disable-theme lc/dark-theme)
-                        (load-theme lc/light-theme :no-confirm))))
-    (_ (error "No theme is loaded, load a theme first"))))
+    (if (eq (car custom-enabled-themes) lc/dark-theme)
+        ;; set light-theme
+        (progn (disable-theme lc/dark-theme) (load-theme lc/light-theme :no-confirm))
+      ;; set dark-theme
+      (progn (disable-theme lc/light-theme) (load-theme lc/dark-theme :no-confirm))))
   )
 #+end_src
 
@@ -719,6 +773,16 @@ Note:
     (define-key evil-motion-state-map (kbd "SPC") nil)
     (define-key evil-motion-state-map (kbd "RET") nil)
     (define-key evil-motion-state-map (kbd "TAB") nil))
+  )
+#+end_src
+
+** evil collection
+
+#+begin_src emacs-lisp
+(use-package evil-collection
+  :config
+  (evil-collection-edebug-setup)
+  (evil-collection-init 'help)
   )
 #+end_src
 
@@ -1457,21 +1521,19 @@ Notest:
   :custom
   (copilot-idle-delay 0)
   :bind
-  ("C-TAB" . 'copilot-accept-completion-by-word)
-  ("C-<tab>" . 'copilot-accept-completion-by-word)
-  ("<leader>cc" . (lambda () (interactive)
-             (setq lc/copilot-enabled (if lc/copilot-enabled nil t))
-             (message (if lc/copilot-enabled "Enabled copilot-mode" "Disabled copilot-mode"))
-             (lc/toggle-copilot-mode)))
+  ("<leader>cc" . 'lc/toggle-copilot-mode)
   (:map copilot-completion-map
-        ("<tab>" . 'copilot-accept-completion)
+        ("<right>" . 'copilot-accept-completion)
+        ("S-TAB" . 'copilot-accept-completion-by-word)
+        ("S-<tab>" . 'copilot-accept-completion-by-word)
         ("C-g" . #'copilot-clear-overlay)
         ("C-n" . #'copilot-next-completion)
         ("C-p" . #'copilot-previous-completion))
   :init
-  (setq lc/copilot-enabled nil)
   (defun lc/toggle-copilot-mode ()
     (interactive)
+    (setq lc/copilot-enabled (not lc/copilot-enabled))
+    (message (if lc/copilot-enabled "Enabled copilot-mode" "Disabled copilot-mode"))
     (copilot-mode (if lc/copilot-enabled 1 -1)))
   )
 #+end_src
@@ -1800,6 +1862,42 @@ How to use:
         ;; org-re-reveal-external-plugins '((progress . "{ src: '%s/plugin/toc-progress/toc-progress.js', async: true, callback: function() { toc_progress.initialize(); toc_progress.create();} }"))
         ))
 #+end_src
+** org-remote-img
+
+#+begin_src emacs-lisp
+(use-package org-remoteimg
+  :after (org)
+  :hook
+  (org-mode . (lambda () (require 'org-remoteimg)))
+  :vc (:fetcher "github" :repo "gaoDean/org-remoteimg")
+  :init
+  (setq org-display-remote-inline-images 'cache)
+  )
+#+end_src
+** see HTML block at point
+
+#+begin_src emacs-lisp
+(use-package org
+  :config
+  (setq lc/org-view-html-tmp-dir "/tmp/org-html-preview/")
+
+  (use-package f)
+
+  (defun lc/org-view-html ()
+    (interactive)
+    (let ((elem (org-element-at-point))
+          (temp-file-path (concat lc/org-view-html-tmp-dir (number-to-string (random (expt 2 32))) ".html")))
+      (cond
+       ((not (eq 'export-block (car elem)))
+        (message "Not in an export block!"))
+       ((not (string-equal (plist-get (car (cdr elem)) :type) "HTML"))
+        (message "Export block is not HTML!"))
+       (t (progn
+            (f-mkdir lc/org-view-html-tmp-dir)
+            (f-write (plist-get (car (cdr elem)) :value) 'utf-8 temp-file-path)
+            (start-process "org-html-preview" nil "xdg-open" temp-file-path))))))
+  )
+#+end_src
 
 * Other packages 
 :PROPERTIES:
@@ -2007,7 +2105,7 @@ How to use:
       (progn
         (split-window-horizontally)
         (other-window 1)
-        (eshell))))
+        (project-eshell))))
   )
 #+end_src
 
@@ -2275,7 +2373,7 @@ To build grammar:
   )
 #+end_src
 
-** COMMENT vterm and vterm-toggle
+** vterm and vterm-toggle
 
 #+begin_src emacs-lisp
 (use-package vterm
@@ -2290,7 +2388,7 @@ To build grammar:
 
 (use-package vterm-toggle
   :bind
-  ("<leader>'" . 'vterm-toggle)
+  ("<leader>pt" . 'vterm-toggle)
   :custom
   (vterm-toggle-scope 'project))
 #+end_src
@@ -2380,10 +2478,94 @@ To build grammar:
   )
 #+end_src
 
-** clojure
+** Clojure
+*** Clojure mode
 
 #+begin_src emacs-lisp
-(use-package clojure-mode)
+(use-package clojure-mode
+  :mode "\\.clj$"
+  :init
+  (setq clojure-align-forms-automatically t)
+	)
+#+end_src
+
+*** clojure-lsp
+
+#+begin_src emacs-lisp
+(use-package clojure-mode
+  :after (lsp-mode)
+  :hook
+  ((clojure-mode clojurescript-mode)
+   . (lambda ()
+       (setq-local lsp-enable-indentation nil ; cider indentation
+                   lsp-enable-completion-at-point nil ; cider completion
+                   )
+       (lsp-deferred)))
+  )
+#+end_src
+
+*** Cider
+
+#+begin_src emacs-lisp
+(use-package cider
+  :hook ((cider-repl-mode . evil-normalize-keymaps)
+         (cider-mode . (lambda ()
+                         (setq-local evil-lookup-func #'cider-doc)))
+         (cider-mode . eldoc-mode))
+  :bind
+  (:map clojure-mode-map
+        ("<localleader>c" . 'cider-connect-clj)
+        ("<localleader>j" . 'cider-jack-in)
+        ("<localleader>J" . 'cider-jack-in-cljs)
+        ("<localleader>dd" . 'cider-debug-defun-at-point)
+        ("<localleader>eb" . 'cider-eval-buffer)
+        ("<localleader>el" . 'cider-eval-last-sexp)
+        ("<localleader>eL" . 'cider-pprint-eval-last-sexp-to-comment)
+        ("<localleader>ed" . 'cider-eval-defun-at-point)
+        ("<localleader>D" . 'cider-pprint-eval-defun-to-comment)
+        ("<localleader>h" . 'cider-clojuredocs-web)
+        ("<visual-state><localleader>e" . 'cider-eval-region)
+        ;; ("K" . 'cider-doc)
+        )
+  :init
+  (setq nrepl-hide-special-buffers t)
+  (setq nrepl-sync-request-timeout nil)
+  (setq cider-repl-display-help-banner nil)
+  )
+#+end_src
+
+*** COMMENT Eval sexp at point
+
+#+begin_src emacs-lisp
+(use-package cider
+  :init
+  (defun mpereira/cider-eval-sexp-at-point (&optional output-to-current-buffer)
+    "Evaluate the expression around point.
+If invoked with OUTPUT-TO-CURRENT-BUFFER, output the result to current buffer."
+    (interactive "P")
+    (save-excursion
+      (goto-char (- (cadr (cider-sexp-at-point 'bounds))
+                    1))
+      (cider-eval-last-sexp output-to-current-buffer)))
+  )
+#+end_src
+
+*** ob-clojure
+
+#+begin_src emacs-lisp
+(use-package org
+  :config
+  (require 'ob-clojure)
+  (setq org-babel-clojure-backend 'cider)
+  )
+#+end_src
+
+*** aggressive-indent
+
+#+begin_src emacs-lisp
+;; keep the file indented
+(use-package aggressive-indent
+  :hook (clojure-mode emacs-lisp-mode))
 #+end_src
 
 ** Nix
@@ -2478,7 +2660,9 @@ To build grammar:
   (python-base-mode . (lambda ()
                         (require 'lsp-pyright)
                         (lc/init-pyright)
-                        (lsp-deferred)))
+                        (lsp-deferred)
+                        (lsp-diagnostics-mode -1)
+                        ))
   :custom
   (lsp-pyright-typechecking-mode "basic")
   :preface
@@ -2701,6 +2885,7 @@ Compile by hand:
         ("<localleader>x" . 'jupyter-org-kill-block-and-results))
   :hook
   (jupyter-repl-persistent-mode .   (lambda () (setq-local evil-lookup-func #'jupyter-inspect-at-point)))
+  (jupyter-repl-interaction-mode .   (lambda () (setq-local evil-lookup-func #'jupyter-inspect-at-point)))
   :custom
   (jupyter-repl-prompt-margin-width 4)
   (jupyter-eval-use-overlays nil)
@@ -2726,7 +2911,7 @@ Compile by hand:
     (interactive)
     (if jupyter-current-client
         (jupyter-with-repl-buffer jupyter-current-client
-          (kill-buffer (current-buffer)))
+                                  (kill-buffer (current-buffer)))
       (error "Buffer not associated with a REPL, see `jupyter-repl-associate-buffer'")))
   (defun lc/jupyter-toggle-overlays ()
     (interactive)
@@ -2752,7 +2937,9 @@ Compile by hand:
   (require 'python)
   (require 'treesit)
   (evil-define-key 'normal 'python-ts-mode-map
-    (kbd "<localleader>J") 'lc/jupyter-repl))
+    (kbd "<localleader>J") 'lc/jupyter-repl)
+
+  )
 #+end_src
 
 *** COMMENT ob-jupyter
@@ -2831,6 +3018,27 @@ Compile by hand:
 :ID:       C6B74718-A162-4F16-A39D-40F96AF90589
 :END:
 
+NOTE:
+- Save figure:
+#+begin_src org
+,#+begin_src python :file img/hello.png
+import matplotlib.pyplot as plt
+fig, ax = plt.subplots()
+ax.plot([1, 2, 3, 4], [1, 4, 2, 3])
+pass
+,#+end_src
+#+end_src
+
+- Set figure params
+#+begin_src python
+import matplotlib as mpl
+mpl.rcParams['figure.dpi'] = 200
+mpl.rcParams['figure.facecolor'] = '1'
+#+end_src
+
+- To avoid df in HTMl, use =:display plain= in header args
+- To open HTML block at point use =lc/org-view-html=
+
 #+begin_src emacs-lisp
 (use-package emacs
   :hook
@@ -2839,8 +3047,9 @@ Compile by hand:
                          (setq major-mode-remap-alist '())
                          (setq-local evil-lookup-func #'jupyter-inspect-at-point)
                          ;; disable annoying insert-new-line-and-indent behavior
-                         ;; (setq-local indent-line-function 'lc/no-indent)
+                         (setq-local indent-line-function 'lc/no-indent)
                          ))
+   ;; (org-jupyter-mode . 'org-redisplay-inline-images)
    (org-mode . (lambda () (when (lc/is-jupyter-org-buffer?) (org-jupyter-mode)))))
   :init
   (defun lc/no-indent () 'noindent)
@@ -2925,7 +3134,9 @@ Notes:
                ;; NOTE: replaced 'cadr' with 'car' here
                (car (org-babel-params-from-properties lang))))
        (cdr (assoc :session
-                   org-babel-default-header-args:jupyter-python))))))
+                   org-babel-default-header-args:jupyter-python)))))
+
+)
 #+end_src
 
 * Global keybindings
@@ -2989,5 +3200,9 @@ Notes:
     (kbd "SPC") 'evil-send-leader
     (kbd "h") 'dired-up-directory
     (kbd "l") 'dired-find-file)
+  (evil-define-key 'normal help-mode-map
+    (kbd "SPC") 'evil-send-leader)
   )
 #+end_src 
+
+
