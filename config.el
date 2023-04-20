@@ -1700,7 +1700,7 @@ be passed to EVAL-FUNC as its rest arguments"
   (lsp-auto-execute-action nil)
   (lsp-before-save-edits nil)
   (lsp-headerline-breadcrumb-enable nil)
-  (lsp-diagnostics-provider nil)
+  (lsp-diagnostics-provider :none)
   :config
   (add-to-list 'lsp-language-id-configuration '(python-ts-mode . "python"))
   )
@@ -2018,6 +2018,8 @@ be passed to EVAL-FUNC as its rest arguments"
   :hook
   (jupyter-repl-persistent-mode .   (lambda () (setq-local evil-lookup-func #'jupyter-inspect-at-point)))
   (jupyter-repl-interaction-mode .   (lambda () (setq-local evil-lookup-func #'jupyter-inspect-at-point)))
+  (jupyter-repl-persistent-mode . (lambda ()  ;; we activate org-interaction-mode ourselves
+                                     (when (derived-mode-p 'org-mode) (jupyter-org-interaction-mode))))
   :custom
   (jupyter-repl-prompt-margin-width 4)
   (jupyter-eval-use-overlays nil)
@@ -2078,12 +2080,18 @@ be passed to EVAL-FUNC as its rest arguments"
   ((org-jupyter-mode . (lambda ()
                          ;; otherwise jupyter-associate-buffer will fail
                          (setq major-mode-remap-alist '())
-                         (setq-local evil-lookup-func #'jupyter-inspect-at-point)
+                         ;; (setq-local evil-lookup-func #'jupyter-inspect-at-point)
                          ;; disable annoying insert-new-line-and-indent behavior
                          (setq-local indent-line-function 'lc/no-indent)
                          ))
    ;; (org-jupyter-mode . 'org-redisplay-inline-images)
    (org-mode . (lambda () (when (lc/is-jupyter-org-buffer?) (org-jupyter-mode)))))
+  :bind
+  (:map org-jupyter-mode-map
+        ("<localleader>kd" . 'lc/kill-repl-kernel)
+        ("<localleader>ki" . 'jupyter-org-interrupt-kernel)
+        ("<localleader>kr" . 'jupyter-repl-restart-kernel)
+        )
   :init
   (defun lc/no-indent () 'noindent)
   (defun lc/is-jupyter-org-buffer? ()
@@ -2141,6 +2149,20 @@ be passed to EVAL-FUNC as its rest arguments"
               (require 'scimax-jupyter))
           (message "could not initialize scimax-jupyter!")))))
   :init
+  ;; (cl-defmethod jupyter-org--insert-result (_req context result)
+  ;;   (let ((str
+  ;;          (org-element-interpret-data
+  ;;           (jupyter-org--wrap-result-maybe
+  ;;            context (if (jupyter-org--stream-result-p result)
+  ;;                        (thread-last result
+  ;;                                     jupyter-org-strip-last-newline
+  ;;                                     jupyter-org-scalar)
+  ;;                      result)))))
+  ;;     (if (< (length str) 100000)  ;; >
+  ;;         (insert str)
+  ;;       (insert (format ": Result was too long! Length was %d" (length str)))))
+  ;;   (when (/= (point) (line-beginning-position))
+  ;;     (insert "\n")))
   (defun scimax-jupyter-get-session ()
     "Get the session name in the current buffer."
     (let ((lang (car (org-babel-get-src-block-info))))

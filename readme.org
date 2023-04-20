@@ -2457,7 +2457,7 @@ To build grammar:
   (lsp-auto-execute-action nil)
   (lsp-before-save-edits nil)
   (lsp-headerline-breadcrumb-enable nil)
-  (lsp-diagnostics-provider nil)
+  (lsp-diagnostics-provider :none)
   :config
   (add-to-list 'lsp-language-id-configuration '(python-ts-mode . "python"))
   )
@@ -2645,6 +2645,13 @@ If invoked with OUTPUT-TO-CURRENT-BUFFER, output the result to current buffer."
   #+end_src
 
 *** direnv
+
+Example of =.envrc= file if we need to use =x86= python:
+#+begin_src sh
+pwd_hash=$(echo -n $PWD | shasum | cut -d ' ' -f 1)
+direnv_layout_dir=$XDG_CACHE_HOME/direnv/layouts/$pwd_hash
+layout python /usr/local/homebrew/bin/python3.9
+#+end_src
 
 #+begin_src emacs-lisp
 (use-package envrc
@@ -2886,6 +2893,8 @@ Compile by hand:
   :hook
   (jupyter-repl-persistent-mode .   (lambda () (setq-local evil-lookup-func #'jupyter-inspect-at-point)))
   (jupyter-repl-interaction-mode .   (lambda () (setq-local evil-lookup-func #'jupyter-inspect-at-point)))
+  (jupyter-repl-persistent-mode . (lambda ()  ;; we activate org-interaction-mode ourselves
+                                     (when (derived-mode-p 'org-mode) (jupyter-org-interaction-mode))))
   :custom
   (jupyter-repl-prompt-margin-width 4)
   (jupyter-eval-use-overlays nil)
@@ -2942,100 +2951,19 @@ Compile by hand:
   )
 #+end_src
 
-*** COMMENT ob-jupyter
-
-#+begin_src emacs-lisp
-(use-package jupyter
-  :vc (:fetcher "github" :repo "nnicandro/emacs-jupyter")
-  :bind
-  (:map org-mode-map
-        ;; insert block below
-        ("<localleader>=" . (lambda () (interactive) (jupyter-org-insert-src-block t nil)))
-        ("<localleader>," . 'org-ctrl-c-ctrl-c)
-        ("<localleader>m" . 'jupyter-org-merge-blocks)
-        ("<localleader>+" . 'jupyter-org-insert-src-block)
-        ("<localleader>?" . 'jupyter-inspect-at-point)
-        ("<localleader>x" . 'jupyter-org-kill-block-and-results))
-  :hook
-  (;; (jupyter-org-interaction-mode . (lambda () (lc/add-local-electric-pairs '((?' . ?')))))
-   (jupyter-repl-persistent-mode . (lambda ()  ;; we activate org-interaction-mode ourselves
-                                     (when (derived-mode-p 'org-mode)
-                                       (setq-local evil-lookup-func #'jupyter-inspect-at-point)
-                                       (jupyter-org-interaction-mode))))
-   (envrc-mode . lc/load-ob-jupyter))
-  :preface
-  (defun lc/load-ob-jupyter ()
-    (interactive)
-    ;; only try to load in org-mode
-    (when (derived-mode-p 'org-mode)
-      ;; skip if already loaded
-      (unless (member '(jupyter . t) org-babel-load-languages)
-        ;; only load if jupyter is available
-        (if (executable-find "jupyter")
-            (org-babel-do-load-languages 'org-babel-load-languages (append org-babel-load-languages '((jupyter . t))))
-          (message "jupyter executable not found")))))
-  :config
-  (with-eval-after-load 'org
-    (setq org-babel-default-header-args:jupyter-python '((:async . "yes") (:pandoc t) (:kernel . "python3")))
-    (setq org-babel-default-header-args:jupyter-R '((:pandoc t) (:async . "yes") (:kernel . "ir"))))
-  (cl-defmethod jupyter-org--insert-result (_req context result)
-    (let ((str
-           (org-element-interpret-data
-            (jupyter-org--wrap-result-maybe
-             context (if (jupyter-org--stream-result-p result)
-                         (thread-last result
-                                      jupyter-org-strip-last-newline
-                                      jupyter-org-scalar)
-                       result)))))
-      (if (< (length str) 100000)  ;; >
-          (insert str)
-        (insert (format ": Result was too long! Length was %d" (length str)))))
-    (when (/= (point) (line-beginning-position))
-      ;; Org objects such as file links do not have a newline added when
-      ;; converting to their string representation by
-      ;; `org-element-interpret-data' so insert one in these cases.
-      (insert "\n")))
-  (defun jupyter-make-ssh-tunnel (lport rport server remoteip)
-    (or remoteip (setq remoteip "127.0.0.1"))
-    (start-process
-     "jupyter-ssh-tunnel" nil
-     "ssh"
-     ;; Run in background
-     ;; "-f"
-     ;; Wait until the tunnel is open
-     "-o ExitOnForwardFailure=yes"
-     ;; Local forward
-     "-L" (format "127.0.0.1:%d:%s:%d" lport remoteip rport)
-     server
-     ;; Close the tunnel if no other connections are made within 60
-     ;; seconds
-     "sleep 60"))
-  )
-#+end_src
-
 *** Org jupyter mode
 :PROPERTIES:
 :ID:       C6B74718-A162-4F16-A39D-40F96AF90589
 :END:
 
 NOTE:
-- Save figure:
-#+begin_src org
-,#+begin_src python :file img/hello.png
-import matplotlib.pyplot as plt
-fig, ax = plt.subplots()
-ax.plot([1, 2, 3, 4], [1, 4, 2, 3])
-pass
-,#+end_src
-#+end_src
-
+- To save a figure add =:file img/hello.png= to header args
 - Set figure params
 #+begin_src python
 import matplotlib as mpl
 mpl.rcParams['figure.dpi'] = 200
 mpl.rcParams['figure.facecolor'] = '1'
 #+end_src
-
 - To avoid df in HTMl, use =:display plain= in header args
 - To open HTML block at point use =lc/org-view-html=
 
@@ -3045,12 +2973,18 @@ mpl.rcParams['figure.facecolor'] = '1'
   ((org-jupyter-mode . (lambda ()
                          ;; otherwise jupyter-associate-buffer will fail
                          (setq major-mode-remap-alist '())
-                         (setq-local evil-lookup-func #'jupyter-inspect-at-point)
+                         ;; (setq-local evil-lookup-func #'jupyter-inspect-at-point)
                          ;; disable annoying insert-new-line-and-indent behavior
                          (setq-local indent-line-function 'lc/no-indent)
                          ))
    ;; (org-jupyter-mode . 'org-redisplay-inline-images)
    (org-mode . (lambda () (when (lc/is-jupyter-org-buffer?) (org-jupyter-mode)))))
+  :bind
+  (:map org-jupyter-mode-map
+        ("<localleader>kd" . 'lc/kill-repl-kernel)
+        ("<localleader>ki" . 'jupyter-org-interrupt-kernel)
+        ("<localleader>kr" . 'jupyter-repl-restart-kernel)
+        )
   :init
   (defun lc/no-indent () 'noindent)
   (defun lc/is-jupyter-org-buffer? ()
@@ -3125,6 +3059,20 @@ Notes:
               (require 'scimax-jupyter))
           (message "could not initialize scimax-jupyter!")))))
   :init
+  ;; (cl-defmethod jupyter-org--insert-result (_req context result)
+  ;;   (let ((str
+  ;;          (org-element-interpret-data
+  ;;           (jupyter-org--wrap-result-maybe
+  ;;            context (if (jupyter-org--stream-result-p result)
+  ;;                        (thread-last result
+  ;;                                     jupyter-org-strip-last-newline
+  ;;                                     jupyter-org-scalar)
+  ;;                      result)))))
+  ;;     (if (< (length str) 100000)  ;; >
+  ;;         (insert str)
+  ;;       (insert (format ": Result was too long! Length was %d" (length str)))))
+  ;;   (when (/= (point) (line-beginning-position))
+  ;;     (insert "\n")))
   (defun scimax-jupyter-get-session ()
     "Get the session name in the current buffer."
     (let ((lang (car (org-babel-get-src-block-info))))
