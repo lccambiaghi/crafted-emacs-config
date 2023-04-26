@@ -4,6 +4,12 @@ prog-mode
 
 (todo (if (derived-mode-p 'emacs-lisp-mode) ";; " comment-start) "TODO ")
 
+python-base-mode
+
+(try "try:" n> r> n "except " p " as " p ":" n> r> n "else:" n> r> n "finally:" n> r> n)
+(iff "if " p ":" n> r> n "else:" n> r> n)
+(main "if __name__ == '__main__':" n> r> n)
+
 emacs-lisp-mode
 
 (autoload ";;;###autoload")

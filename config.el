@@ -15,7 +15,8 @@
   (defvar read-symbol-positions-list nil)
   (defvar lc/use-lambda-line nil)
   (defvar lc/use-lambda-theme nil)
-  (defvar lc/copilot-enabled nil)
+  (defvar lc/copilot-enabled t)
+  (defvar lc/beorg-folder "~/Library/Mobile Documents/iCloud~com~appsonthemove~beorg/Documents/org/roam/")
   )
 
 (use-package emacs
@@ -222,7 +223,12 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
   (setq modus-themes-italic-constructs t
         modus-themes-org-blocks 'greyscale ; {nil,'greyscale,'rainbow}
         ;; modus-themes-variable-pitch-ui t
-        modus-themes-bold-constructs nil)
+        ;; modus-themes-mixed-fonts t
+        modus-themes-headings (quote ((1 . (overline variable-pitch 1.4))
+                                      (2 . (overline variable-pitch 1.25))
+                                      (3 . (overline variable-pitch 1.1))
+                                      (t . (monochrome))))
+        modus-themes-bold-constructs t)
 
   ;; define some palette overrides
   (defun lc/override-modus-themes-colors ()
@@ -283,7 +289,7 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
 
 (use-package dashboard
   :bind
-  ("<leader>TAB h" . 'lc/go-to-dashboard)
+  ("<leader>TAB H" . 'lc/go-to-dashboard)
   :preface
   (defun linum-mode (_) )
   (defun lc/dashboard-insert-projects (list-size)
@@ -296,7 +302,7 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
      (abbreviate-file-name el)))
   (defun lc/go-to-dashboard ()
     (interactive)
-    (kill-buffer dashboard-buffer-name)
+    (kill-matching-buffers dashboard-buffer-name nil 'no-ask)
     (tabspaces-switch-or-create-workspace "Home")
     (dashboard-insert-startupify-lists)
     (switch-to-buffer dashboard-buffer-name))
@@ -304,10 +310,10 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
   (setq dashboard-set-heading-icons t)
   (setq dashboard-set-file-icons t)
   (setq dashboard-items
-        '((recents  . 5)
+        '((agenda . 10)
           ;; (bookmarks . 5)
-          (projects . 5)
-          (agenda . 5)
+          (projects . 10)
+          ;; (recents  . 5)
           ;; (registers . 5)
           ))
   (setq dashboard-set-footer nil)
@@ -410,7 +416,7 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
 ;; )
 
 (use-package lambda-themes
-  :if lc/use-lambda-theme
+  :if (and lc/use-lambda-theme (display-graphic-p))
   :vc (:fetcher "github" :repo "lambda-emacs/lambda-themes")
   :custom
   (lambda-themes-set-italic-comments t)
@@ -1157,7 +1163,10 @@ be passed to EVAL-FUNC as its rest arguments"
   ("<leader>ot" . 'org-todo-list)
   ("<leader>oC" . 'org-capture)
   ("<leader>on" . (lambda () (interactive) (org-agenda nil "n")))
+  ("<leader>oi" . (lambda () (interactive) (find-file (concat lc/beorg-folder "inbox.org"))))
   :custom
+  (org-todo-keywords (quote ((sequence "TODO(t)" "NEXT(n)" "|" "DONE(d!/!)"))))
+  (org-directory lc/beorg-folder)
   (org-agenda-custom-commands
    '(("n" "Next Tasks"
       ((todo "NEXT"
@@ -1165,18 +1174,20 @@ be passed to EVAL-FUNC as its rest arguments"
      ("w" "Work Tasks" tags-todo "+work")))
   (org-capture-templates
    `(("i" "Inbox" entry
-      (file+headline "todo.org" "Inbox")
+      (file+headline "inbox.org" "Inbox")
       ,(concat "* %^{Title}\n"
                ":PROPERTIES:\n"
                ":CAPTURED: %U\n"
                ":END:\n\n"
                "%i%l"))
      ("w" "Work" entry
-      (file+headline "todo.org" "Work")
+      (file+headline "inbox.org" "Work")
       ,(concat "* TODO [#A] %^{Title} :@work:\n"
                "SCHEDULED: %^t\n"
                ":PROPERTIES:\n:CAPTURED: %U\n:END:\n\n"
                "%i%?"))))
+  :init
+  (setq org-agenda-files (mapcar (lambda (f) (concat lc/beorg-folder f)) '("inbox.org" "birthdays.org")))
   )
 
 (use-package org
@@ -1208,9 +1219,9 @@ be passed to EVAL-FUNC as its rest arguments"
 ;; add frame borders to show code block "line"
 (use-package emacs
   :init
-  (modify-all-frames-parameters
-   '((right-divider-width . 10)
-     (internal-border-width . 10)))
+  ;; (modify-all-frames-parameters
+  ;;  '((right-divider-width . 10)
+  ;;    (internal-border-width . 10)))
   (defun lc/hide-divider-and-fringe ()
     (dolist (face '(window-divider
                     window-divider-first-pixel
@@ -1221,10 +1232,13 @@ be passed to EVAL-FUNC as its rest arguments"
   ;; call it once at init time
   (lc/hide-divider-and-fringe)
   ;; call it every time the theme changes
-  (advice-add 'lc/modus-themes-toggle
+  (advice-add 'lc/light-dark-theme-toggle
               :after (lambda () (interactive) (lc/hide-divider-and-fringe))))
 
 (use-package org-modern
+  :custom
+  (org-modern-block-fringe 10)
+  (org-use-sub-superscripts nil)
   :hook
   (org-mode . org-modern-mode))
 
@@ -1332,22 +1346,9 @@ be passed to EVAL-FUNC as its rest arguments"
   ("<leader>nl" . 'denote-link)
   ("<leader>nb" . 'denote-link-backlinks)
   ("<leader>nj" . 'lc/denote-journal)
-  ("<leader>nt" . (lambda () (interactive)
-                    (tabspaces-switch-or-create-workspace "denote")
-                    (find-file (concat denote-directory "/todo.org"))))
   :custom
   (denote-known-keywords '())
   :preface
-  (defun lc/denote-org-extract-subtree ()
-    "Create new Denote note using current Org subtree. Delete the original subtree."
-    (interactive)
-    (if-let ((text (org-get-entry))
-             (heading (org-get-heading :no-tags :no-todo :no-priority :no-comment)))
-        (progn
-          (delete-region (org-entry-beginning-position) (org-entry-end-position))
-          (denote heading (org-get-tags) 'org)
-          (insert text))
-      (user-error "No subtree to extract; aborting")))
   (defun lc/denote-journal ()
     "Create an entry tagged 'journal' with the date as its title."
     (interactive)
@@ -1357,10 +1358,6 @@ be passed to EVAL-FUNC as its rest arguments"
   :init
   (setq denote-directory "/Users/cambiaghiluca/OneDrive - The Boston Consulting Group, Inc/Documents/denote")
   (setq lc/gpt-prompts-file (concat denote-directory "/20230330T145824--useful-gpt-prompts__llm_org.org"))
-
-  (with-eval-after-load 'org
-    (setq org-directory denote-directory)
-    (setq org-agenda-files (directory-files-recursively denote-directory "\\todo.org$")))
   )
 
 (use-package denote-menu
@@ -1439,6 +1436,249 @@ be passed to EVAL-FUNC as its rest arguments"
         (project-eshell))))
   )
 
+(use-package eshell
+  :ensure nil
+  :bind
+  ("<insert-state><up>" . 'eshell-previous-matching-input-from-input)
+  :custom
+  (eshell-directory-name (concat no-littering-etc-directory "eshell/"))
+  ;; auto truncate after 20k lines
+  (eshell-buffer-maximum-lines 20000)
+  (eshell-scroll-to-bottom-on-input 'all)
+  (eshell-scroll-to-bottom-on-output 'all)
+  ;; ls
+  (eshell-ls-use-colorls t)
+  (eshell-ls-use-in-dired nil)
+  (eshell-aliases-file (concat no-littering-etc-directory "eshell/alias"))
+  :init
+  (defvar eshell-prompt-number 0
+    "Set a prompt number for eshell.")
+  (defvar lem-eshell-aliases
+    '(;; Git
+      ("gg" "magit-status")
+
+      ;; Listing
+      ("ls"  "ls -1X $*")
+      ("la" "ls -laX $*")
+      ("ll" "ls -lahsX $*")
+
+      ;; Navigation
+      ("bb" "consult-buffer")
+      ("bd" "eshell-up $1")
+      ("d" "dired $1")
+      ("e" "find-file $1")
+      ("em" "find-file $1")
+      ("ed" (eshell/cd "~/.emacs.d"))
+      ("ff" "find-file $1")
+      ("fo" "find-file-other-window $1")
+      ("fr" (consult-recent-file))
+      ("pp" "project-switch-project")
+      ("pk" "eshell-up-peek $1")
+      ("up" "eshell-up $1")
+
+      ;; Search
+      ("rg" "rg --color=always $*")
+
+      ;; vterm
+      ("vt" "eshell/vterm")
+
+      ;; Quitting
+      ("ex" "exit")
+      ("x" "exit")
+      ("q"  "exit")
+      ("qr" "restart-emacs")
+      ("qq" "save-buffers-kill-emacs")
+      ))
+  ;; Define a var to backup aliases that may already exist
+  (defvar lem-eshell--default-aliases nil)
+  (setq eshell-command-aliases-list lem-eshell-aliases)
+  (setq eshell-prompt-function #'lem-eshell-config--prompt-function)
+  (advice-add #'eshell-write-aliases-list :override #'ignore)
+  (add-hook 'eshell-mode-hook #'lem-setup-eshell)
+  (add-hook 'eshell-directory-change-hook #'lem-eshell-list-files-on-cd)
+  ;; Implement a "prompt number" section
+  (add-hook 'eshell-exit-hook (lambda () (setq eshell-prompt-number 0)))
+  (advice-add 'eshell-send-input :before
+              (lambda (&rest args) (setq eshell-prompt-number (+ 1 eshell-prompt-number))))
+
+  :config
+  ;; See https://github.com/doomemacs/doomemacs/blob/master/modules/term/eshell/
+  (setq lem-eshell--default-aliases eshell-command-aliases-list
+        eshell-command-aliases-list
+        (append eshell-command-aliases-list
+                lem-eshell-aliases))
+  :preface
+  ;; Prompt char
+  (defun lem-eshell-config--prompt-char ()
+    "Return shell character."
+    (format "%s" "λ"))
+
+  (defun lem--pwd-replace-home (pwd)
+    "Replace home in PWD with tilde (~) character."
+    (interactive)
+    (let* ((home (expand-file-name (getenv "HOME")))
+           (home-len (length home)))
+      (if (and
+           (;; <
+            >= home-len (length pwd) )
+           (equal home (substring pwd 0 home-len)))
+          (concat "~" (substring pwd home-len))
+        pwd)))
+
+  (defun lem--pwd-shorten-dirs (pwd)
+    "Shorten all directory names in PWD except the last two."
+    (let ((p-lst (split-string pwd "/")))
+      (if (;; <
+           > (length p-lst) 2)
+          (concat
+           (mapconcat (lambda (elm) (if (zerop (length elm)) ""
+                                      (substring elm 0 1)))
+                      (butlast p-lst 2)
+                      "/")
+           "/"
+           (mapconcat (lambda (elm) elm)
+                      (last p-lst 2)
+                      "/"))
+        ;; Otherwise, we just return the PWD
+        pwd)))
+
+  (defun lem--split-directory-prompt (directory)
+    (if (string-match-p ".*/.*" directory)
+        (list (file-name-directory directory) (file-name-base directory))
+      (list "" directory)))
+
+  (defun lem-eshell-config--prompt-function ()
+    "Prettify eshell prompt."
+    (let* ((os-char (cond ((string-equal system-type "darwin") "")
+                          ((string-equal system-type "gnu/linux") "🐧")
+                          ((string-equal system-type "cygwin") "🗔")
+                          (t "?")))
+           (pwd        (eshell/pwd))
+           (directory (lem--split-directory-prompt
+                       (lem--pwd-shorten-dirs
+                        (lem--pwd-replace-home pwd))))
+           (parent (car directory))
+           (name   (cadr directory)))
+
+      (concat (propertize "\n╭─ " 'face 'lambda-mild)
+              (propertize (format "%s" os-char) 'face 'lambda-meek)
+              (propertize " ─ "  'face 'lambda-mild)
+              (propertize (format-time-string "%H:%M:%S" (current-time))  'face 'lambda-meek)
+              (propertize " ─ "  'face 'lambda-mild) (propertize "\xf07c  "  'face 'lambda-meek)
+              (propertize parent 'face 'lambda-meek)
+              (propertize name 'face `(:inherit lambda-meek :weight bold))
+              "\n"
+              (propertize (concat "│" (number-to-string eshell-prompt-number))   'face 'lambda-mild)
+              "\n"
+              (propertize "╰─>>"  'face 'lambda-mild)
+              ;; (if branch branch " ")
+              (propertize (lem-eshell-config--prompt-char) 'face `(:inherit lambda-yellow :weight ultra-bold))
+              ;; needed for the input text to not have prompt face
+              (propertize " " 'face 'default))))
+
+  (defun lem-set-eshell-alias (&rest aliases)
+    (or (cl-evenp (length aliases))
+        (signal 'wrong-number-of-arguments (list 'even (length aliases))))
+    (with-eval-after-load 'em-alias
+      (while aliases
+        (let ((alias (pop aliases))
+              (command (pop aliases)))
+          (if-let* ((oldval (assoc alias lem-eshell-aliases)))
+              (setcdr oldval (list command))
+            (push (list alias command) lem-eshell-aliases))))
+      (when (boundp 'eshell-command-aliases-list)
+        (if lem-eshell--default-aliases
+            (setq eshell-command-aliases-list
+                  (append lem-eshell--default-aliases lem-eshell-aliases))
+          (setq eshell-command-aliases-list lem-eshell-aliases)))))
+
+  (defun lem-eshell-home ()
+    "Open eshell in home dir."
+    (interactive)
+    (let ((default-directory "~/"))
+      (require 'eshell)
+      (eshell)))
+
+  ;; Open an eshell in current dir, with project as name.
+  ;; If called with universal arg, open in home dir.
+  (defun lem-call-eshell (&optional arg)
+    "Open `eshell' in current dir, with project as name.
+If called with universal arg, open in home dir."
+    (interactive "P")
+    (if arg
+        (lem-eshell-home)
+      (eshell)))
+
+;;;;; Jump Directories (w/Consult & Consult-Dir)
+  (defun eshell/z (&optional regexp)
+    "Navigate to a previously visited directory in eshell, or to
+any directory proferred by `consult-dir'."
+    (let ((eshell-dirs (delete-dups
+                        (mapcar 'abbreviate-file-name
+                                (ring-elements eshell-last-dir-ring)))))
+      (cond
+       ((and (not regexp) (featurep 'consult-dir))
+        (let* ((consult-dir--source-eshell `(:name "Eshell"
+                                                   :narrow ?e
+                                                   :category file
+                                                   :face consult-file
+                                                   :items ,eshell-dirs))
+               (consult-dir-sources (cons consult-dir--source-eshell
+                                          consult-dir-sources)))
+          (eshell/cd (substring-no-properties
+                      (consult-dir--pick "Switch directory: ")))))
+       (t (eshell/cd (if regexp (eshell-find-previous-directory regexp)
+                       (completing-read "cd: " eshell-dirs)))))))
+
+
+  (defun eshell/vterm ()
+    "Open the current directory of the eshell buffer in vterm."
+    (interactive)
+    (let ((default-directory (eshell/pwd)))
+      (vterm)))
+
+(defun eshell-clear-buffer ()
+  "Clear terminal"
+  (interactive)
+  (let ((inhibit-read-only t))
+    (erase-buffer)
+    (eshell-send-input)))
+
+;;;; Setup Hooks
+  (defun lem-setup-eshell ()
+    (interactive)
+    ;; Clear eshell keybind
+    (local-set-key (kbd "C-l") 'eshell-clear-buffer)
+    ;; Use imenu to jump prompts
+    ;; https://xenodium.com/imenu-on-emacs-eshell/
+    (setq-local imenu-generic-expression
+                '(("Prompt" " λ \\(.*\\)" 1)))
+    ;; Turn off semantic-mode in eshell buffers
+    (semantic-mode -1)
+    ;; Turn off hl-line-mode
+    (hl-line-mode -1)
+    ;; Remove fringe
+    (set-window-fringes nil 0 0)
+    (set-window-margins nil 1 nil)
+    ;; Scrolling
+    (setq hscroll-margin 0)
+    ;; Text wrapping
+    (visual-line-mode +1)
+    (set-display-table-slot standard-display-table 0 ?\ ))
+
+  ;; ls files on cd
+  (defun lem-eshell-list-files-on-cd ()
+    "Use ls to show files w/directories first."
+    (eshell/ls "-1X"))
+  )
+
+;;;; Syntax Highlighting
+(use-package eshell-syntax-highlighting
+  :after eshell
+  :config
+  ;; Enable in all Eshell buffers.
+  (eshell-syntax-highlighting-global-mode +1))
+
 (use-package embark
   :bind
   ("C-l" . 'embark-act)
@@ -1461,6 +1701,10 @@ be passed to EVAL-FUNC as its rest arguments"
         (eval-region start end standard-output)))
      (max (point) (mark))))
   )
+
+(use-package jinx
+  :hook (org-mode . jinx-mode)
+  :bind ([remap ispell-word] . jinx-correct))
 
 (use-package flymake
   :ensure nil
@@ -1556,11 +1800,11 @@ be passed to EVAL-FUNC as its rest arguments"
                          (find-file (concat lc/config-directory "/readme.org"))))
   :custom
   (tabspaces-use-filtered-buffers-as-default t)
-  (tabspaces-default-tab "Default")
+  ;; (tabspaces-default-tab "Default")
   (tabspaces-remove-to-default t)
   (tabspaces-include-buffers '("*scratch*"))
   ;; sessions
-  (tabspaces-session t)
+  ;; (tabspaces-session t)
   ;; (tabspaces-session-auto-restore t)
   :preface
   (defun lc/setup-tabspaces ()
@@ -1591,7 +1835,6 @@ be passed to EVAL-FUNC as its rest arguments"
                                   :predicate #'tabspaces--local-buffer-p
                                   :sort 'visibility
                                   :as #'buffer-name)))
-
       "Set workspace buffer list for consult-buffer.")
     (add-to-list 'consult-buffer-sources 'consult--source-workspace)))
 
@@ -1638,10 +1881,13 @@ be passed to EVAL-FUNC as its rest arguments"
 (use-package vertico
   :bind
   (:map vertico-map
-        ("C-k" . 'vertico-next)
-        ("C-j" . 'vertico-previous))
-  :config
-  (vertico-reverse-mode)
+        ("C-j" . 'vertico-next)
+        ;; ("C-k" . 'vertico-next)
+        ;; ("C-j" . 'vertico-previous)
+        ("C-k" . 'vertico-previous)
+        )
+  ;; :config
+  ;; (vertico-reverse-mode)
   :custom
   (vertico-resize t)
   )
@@ -2135,19 +2381,17 @@ be passed to EVAL-FUNC as its rest arguments"
                               (setq header-line-format nil)
                               (message "killer jupyter kernel"))))
   :hook
-  (envrc-mode . lc/init-jupyter)
+  (org-jupyter-mode . lc/init-jupyter)
   :preface
   (defun lc/init-jupyter ()
     (interactive)
     ;; only try to load in org-mode
-    (when (derived-mode-p 'org-mode)
-      ;; skip if already loaded
-      (unless (member '(jupyter . t) org-babel-load-languages)
+    (unless (member '(jupyter . t) org-babel-load-languages)
         ;; only load if jupyter is available
         (if (executable-find "jupyter")
-            (with-no-warnings
+            (let ((warning-minimum-level :error))
               (require 'scimax-jupyter))
-          (message "could not initialize scimax-jupyter!")))))
+          (message "could not initialize scimax-jupyter!"))))
   :init
   ;; (cl-defmethod jupyter-org--insert-result (_req context result)
   ;;   (let ((str
@@ -2174,7 +2418,14 @@ be passed to EVAL-FUNC as its rest arguments"
        (cdr (assoc :session
                    org-babel-default-header-args:jupyter-python)))))
 
-)
+  )
+
+(use-package stan-mode
+  :mode ("\\.stan\\'" . stan-mode)
+  :hook (stan-mode . stan-mode-setup)
+  :config
+  ;; The officially recommended offset is 2.
+  (setq stan-indentation-offset 2))
 
 (use-package evil
   :config

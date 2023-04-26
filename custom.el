@@ -97,7 +97,7 @@
  '(evil-want-C-i-jump t nil nil "Customized with use-package evil")
  '(org-fold-catch-invisible-edits 'error nil nil "Customized with use-package org")
  '(package-selected-packages
-   '(org-mode org-remoteimg lambda-line lambda-themes solarized-theme nordic-night-theme emacs-eat org-fragtog sideline chatgpt-shell tempel centered-cursor-mode pretty-hydra magithub lispy ivy-hydra hy-mode google-this git-messenger flx flycheck esup elfeed dashboard counsel-projectile ivy-avy counsel multiple-cursors swiper drag-stuff button-lock auctex auto-complete aggressive-indent diminish treemacs-tab-bar treemacs-evil copilot copilot aide weblorg clojure emacs-htmlize emacs-htmlize clojure-mode weblorg templatel hexrgb hexrgb org-html-themify xwwp-full evil-snipe evil-iedit-state chatgpt-shell chatgpt-shell openai codegpt codegpt chatgpt-arcana xwwp-full xwwp-full denote-menu hl-todo consult-notes no-littering denote emacsql-sqlite-module emacsql-sqlite-builtin org-roam all-the-icons-completion xwwp csv-mode highlight-indent-guides persistent-scratch emacs-zmq emacs-zmq jupyter dap-mode flymake-ruff lsp-pyright lsp-ui lsp-mode direnv vc-use-package pet envrc inheritenv org-modern nix-mode hydra diff-hl git-timemachine magit pyvenv vterm-toggle vterm evil-goggles eros numpydoc transpose-frame doom-modeline kind-icon rainbow-delimiters dired-subtree dired-hide-dotfiles all-the-icons-dired dired evil-org-mode evil-org-mode evil-cleverparens evil-surround corfu-terminal evil-collection elisp-demos cape all-the-icons org-appear evil-nerd-commenter embark-consult exec-path-from-shell orderless helpful marginalia vertico keycast))
+   '(stan-mode jinx org-mode org-remoteimg lambda-line lambda-themes solarized-theme nordic-night-theme emacs-eat org-fragtog sideline chatgpt-shell tempel centered-cursor-mode pretty-hydra magithub lispy ivy-hydra hy-mode google-this git-messenger flx flycheck esup elfeed dashboard counsel-projectile ivy-avy counsel multiple-cursors swiper drag-stuff button-lock auctex auto-complete aggressive-indent diminish treemacs-tab-bar treemacs-evil copilot copilot aide weblorg clojure emacs-htmlize emacs-htmlize clojure-mode weblorg templatel hexrgb hexrgb org-html-themify xwwp-full evil-snipe evil-iedit-state chatgpt-shell chatgpt-shell openai codegpt codegpt chatgpt-arcana xwwp-full xwwp-full denote-menu hl-todo consult-notes no-littering denote emacsql-sqlite-module emacsql-sqlite-builtin org-roam all-the-icons-completion xwwp csv-mode highlight-indent-guides persistent-scratch emacs-zmq emacs-zmq jupyter dap-mode flymake-ruff lsp-pyright lsp-ui lsp-mode direnv vc-use-package pet envrc inheritenv org-modern nix-mode hydra diff-hl git-timemachine magit pyvenv vterm-toggle vterm evil-goggles eros numpydoc transpose-frame doom-modeline kind-icon rainbow-delimiters dired-subtree dired-hide-dotfiles all-the-icons-dired dired evil-org-mode evil-org-mode evil-cleverparens evil-surround corfu-terminal evil-collection elisp-demos cape all-the-icons org-appear evil-nerd-commenter embark-consult exec-path-from-shell orderless helpful marginalia vertico keycast))
  '(package-vc-selected-packages
    '((os1-theme :vc-backend Git :url "https://github.com/sashimacs/os1-theme")))
  '(safe-local-variable-values
@@ -110,10 +110,7 @@
              (progn
                (lc/org-add-ids-to-headlines-in-file)
                (lc/tangle-config)))
-           nil t)))
- '(tabspaces-include-buffers '("*scratch*") nil nil "Customized with use-package tabspaces")
- '(tabspaces-remove-to-default t nil nil "Customized with use-package tabspaces")
- '(tabspaces-use-filtered-buffers-as-default t nil nil "Customized with use-package tabspaces"))
+           nil t))))
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
