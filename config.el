@@ -8,15 +8,15 @@
 (use-package emacs
   :init
   (defvar lc/config-directory crafted-config-path)
-  (defvar lc/use-xwidget-browser t)
+  (defvar lc/use-xwidget-browser nil)
   (defvar lc/light-theme 'modus-operandi)
   (defvar lc/dark-theme 'modus-vivendi)
   ;; fix void-variable in some packages e.g. helpful
   (defvar read-symbol-positions-list nil)
   (defvar lc/use-lambda-line nil)
   (defvar lc/use-lambda-theme nil)
-  (defvar lc/copilot-enabled t)
-  (defvar lc/beorg-folder "~/Library/Mobile Documents/iCloud~com~appsonthemove~beorg/Documents/org/roam/")
+  (defvar lc/copilot-enabled nil)
+  (defvar lc/beorg-folder "~/Library/Mobile Documents/iCloud~com~appsonthemove~beorg/Documents/beorg/")
   )
 
 (use-package emacs
@@ -224,9 +224,9 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
         modus-themes-org-blocks 'greyscale ; {nil,'greyscale,'rainbow}
         ;; modus-themes-variable-pitch-ui t
         ;; modus-themes-mixed-fonts t
-        modus-themes-headings (quote ((1 . (overline variable-pitch 1.4))
-                                      (2 . (overline variable-pitch 1.25))
-                                      (3 . (overline variable-pitch 1.1))
+        modus-themes-headings (quote ((1 . (variable-pitch 1.4))
+                                      (2 . (variable-pitch 1.25))
+                                      (3 . (variable-pitch 1.1))
                                       (t . (monochrome))))
         modus-themes-bold-constructs t)
 
@@ -477,6 +477,7 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
   ;; set up motion keys
   (define-key evil-motion-state-map "_" 'evil-end-of-line)
   (define-key evil-motion-state-map "0" 'evil-beginning-of-line)
+  (define-key evil-motion-state-map "gD" 'xref-find-references)
   ;; unbind C-p so consult can use it
   (define-key evil-normal-state-map (kbd "C-p") nil)
   (define-key evil-insert-state-map (kbd "C-p") nil)
@@ -499,8 +500,9 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
       (org-mode eros-eval-region)
       ;; (scheme-mode geiser-eval-region)
       (clojure-mode cider-eval-region)
-      (jupyter-repl-interaction-mode jupyter-eval-line-or-region)
-      (python-ts-mode jupyter-eval-region)
+      ;; (jupyter-repl-interaction-mode jupyter-eval-line-or-region)
+      ;; (python-ts-mode jupyter-eval-region)
+      (python-ts-mode lc/eval-in-jupyter-repl)
       ;; (python-mode python-shell-send-region) ;; when executing in org-src-edit mode
       )
     "Alist used to determine evil-operator-eval's behaviour.
@@ -523,9 +525,12 @@ be passed to EVAL-FUNC as its rest arguments"
            (f-a (cdr-safe ele))
            (func (car-safe f-a))
            (args (cdr-safe f-a)))
-      (if (fboundp func)
-          (save-mark-and-excursion (apply func beg end args))
-        (eval-region beg end t))))
+      (unless (fboundp func)
+        (message "eval operator function not defined for current major mode"))
+      ;; (save-mark-and-excursion (apply func beg end args))
+      (apply func beg end args)
+      (goto-char end)))
+
   (define-key emacs-lisp-mode-map (kbd "<normal-state> gr") nil)
   (define-key evil-motion-state-map "gr" 'evil-operator-eval)
   )
@@ -755,22 +760,28 @@ be passed to EVAL-FUNC as its rest arguments"
         ("<leader>cp" . 'lc/gpt-complete-with-prompt-prefix-and-insert))
   :init
   (setq lc/gpt-api-key-getter (lambda () (auth-source-pick-first-password :host "chat.openai.com")))
-  ;; (setq lc/gpt-model 'text-davinci-003)
-  (setq lc/gpt-model 'gpt-3.5-turbo-0301)
+  ;; (setq lc/gpt-model 'gpt-3.5-turbo-0301)
+  ;; (setq lc/gpt-model 'gpt-4-0314)
+  ;; (setq lc/gpt-model 'gpt-4-0613)
+  (setq lc/gpt-model 'gpt-3.5-turbo-16k)
+  (setq lc/chat-model t)
   (setq lc/gpt-max-output-tokens 2000)
   (setq lc/gpt-temperature 0.1)
   (setq lc/gpt-top-p 0.1)
   (setq lc/gpt-frequency-penalty 0)
   (setq lc/gpt-presence-penalty 0)
-  (setq lc/gpt-prompt-prefix-alist '(("complete" . "Complete the following code.")))
+  (setq lc/gpt-prompt-prefix-alist
+        '(("describe" . "Describe the following code.")
+          ("pytest" . "Write a unit test for the following function using pytest.")
+          ("docstring" . "Write a docstring for the following function.")
+          ))
 
   (defun lc/gpt-complete-str (api-key prompt-or-messages)
     "Return the prompt answer from OpenAI API."
     (let* ((result nil)
            (auth-value (format "Bearer %s" api-key))
-           (chat-model (eq lc/gpt-model 'gpt-3.5-turbo-0301))
-           (url (if chat-model "https://api.openai.com/v1/chat/completions" "https://api.openai.com/v1/completions"))
-           (prompt-key (if chat-model "messages" "prompt")))
+           (url (if lc/chat-model "https://api.openai.com/v1/chat/completions" "https://api.openai.com/v1/completions"))
+           (prompt-key (if lc/chat-model "messages" "prompt")))
       (request
         url
         :type "POST"
@@ -787,7 +798,7 @@ be passed to EVAL-FUNC as its rest arguments"
         :parser 'json-read
         :success (cl-function
                   (lambda (&key data &allow-other-keys)
-                    (setq result (if (eq lc/gpt-model 'gpt-3.5-turbo-0301)
+                    (setq result (if lc/chat-model
                                      (alist-get 'content (alist-get 'message (elt (alist-get 'choices data) 0)))
                                    (alist-get 'text (elt (alist-get 'choices data) 0))))))
         :error (cl-function (lambda (&rest args &key error-thrown &allow-other-keys)
@@ -798,10 +809,7 @@ be passed to EVAL-FUNC as its rest arguments"
     (let* ((result (lc/gpt-complete-str (funcall lc/gpt-api-key-getter) prompt)))
       (goto-char (point-max))
       (if result
-          (progn
-            (insert "\n" result)
-            (fill-paragraph)
-            result)
+          (progn (insert "\n" result) (fill-paragraph))
         (message "Empty result"))))
 
   (defun lc/gpt-complete-with-prompt-prefix-and-insert (start end)
@@ -821,16 +829,16 @@ be passed to EVAL-FUNC as its rest arguments"
                     nil t))
            (instruction (cdr (assoc action lc/gpt-prompt-prefix-alist)))
            (text (string-trim (buffer-substring start end)))
-           (prompt (concat instruction "\n" text)))
-      (lc/gpt-complete-and-insert prompt)))
+           (prompt (concat instruction "\n" text))
+           (messages `[(("role"    . "user") ("content" . ,prompt))]))
+      (lc/gpt-complete-and-insert (if lc/chat-model messages prompt))))
 
   (defun lc/gpt-complete-region-and-insert (start end)
     "Send the region to OpenAI and insert the result to the end of buffer. "
     (interactive "r")
     (let* ((prompt (buffer-substring-no-properties start end))
-           (messages `[(("role"    . "user") ("content" . ,prompt))])
-           (chat-model (eq lc/gpt-model 'gpt-3.5-turbo-0301)))
-      (lc/gpt-complete-and-insert (if chat-model messages prompt))))
+           (messages `[(("role"    . "user") ("content" . ,prompt))]))
+      (lc/gpt-complete-and-insert (if lc/chat-model messages prompt))))
 
   (defun lc/gpt-complete-buffer-and-insert ()
     "Send the ENTIRE buffer, up to max tokens, to OpenAI and insert the result to the end of buffer."
@@ -957,13 +965,15 @@ be passed to EVAL-FUNC as its rest arguments"
   ("<leader>op" . lc/open-prompts-file)
   :custom
   (chatgpt-shell-chatgpt-streaming t)
-  (chatgpt-shell-chatgpt-model-version "gpt-3.5-turbo-0301")
+  (chatgpt-shell-chatgpt-model-version lc/gpt-model)
   (chatgpt-shell-openai-key (lambda () (auth-source-pick-first-password :host "chat.openai.com")))
   :preface
   (defun lc/open-prompts-file ()
     (interactive)
     (unless (member '(chatgpt-shell . t) org-babel-load-languages)
       (require 'ob-chatgpt-shell)
+      (require 'ob-dall-e-shell)
+      (ob-dall-e-shell-setup)
       (ob-chatgpt-shell-setup))
     (find-file-other-window lc/gpt-prompts-file)))
 
@@ -1103,6 +1113,7 @@ be passed to EVAL-FUNC as its rest arguments"
         ("<localleader>ls" . 'org-store-link)
         ("<localleader>L" . (lambda () (interactive) (org-latex-preview)))
         ("<localleader>n" . 'org-toggle-narrow-to-subtree)
+        ("<localleader>p" . 'org-priority)
         ("<localleader>r" . 'org-refile)
         ("<localleader>t" . 'org-todo)
         ("<localleader>x" . 'org-toggle-checkbox)
@@ -1164,8 +1175,9 @@ be passed to EVAL-FUNC as its rest arguments"
   ("<leader>oC" . 'org-capture)
   ("<leader>on" . (lambda () (interactive) (org-agenda nil "n")))
   ("<leader>oi" . (lambda () (interactive) (find-file (concat lc/beorg-folder "inbox.org"))))
+  ("<leader>ow" . (lambda () (interactive) (find-file (concat lc/beorg-folder "workflow.org"))))
   :custom
-  (org-todo-keywords (quote ((sequence "TODO(t)" "NEXT(n)" "|" "DONE(d!/!)"))))
+  (org-todo-keywords (quote ((sequence "TODO(t)" "NEXT(n)" "|" "HOLD(h)" "DONE(d!/!)"))))
   (org-directory lc/beorg-folder)
   (org-agenda-custom-commands
    '(("n" "Next Tasks"
@@ -1187,7 +1199,7 @@ be passed to EVAL-FUNC as its rest arguments"
                ":PROPERTIES:\n:CAPTURED: %U\n:END:\n\n"
                "%i%?"))))
   :init
-  (setq org-agenda-files (mapcar (lambda (f) (concat lc/beorg-folder f)) '("inbox.org" "birthdays.org")))
+  (setq org-agenda-files (mapcar (lambda (f) (concat lc/beorg-folder f)) '("inbox.org" "20230623T103529--birthdays__life.org")))
   )
 
 (use-package org
@@ -1339,7 +1351,8 @@ be passed to EVAL-FUNC as its rest arguments"
   :hook
   (dired-mode . denote-dired-mode)
   :bind
-  ("<leader>nn" . 'denote-open-or-create)
+  ("<leader>nn" . (lambda () (interactive)
+                    (tabspaces-switch-or-create-workspace "denote") (call-interactively 'denote-open-or-create)))
   ("<leader>nk" . 'denote-keywords-add)
   ("<leader>nK" . 'denote-keywords-remove)
   ("<leader>nr" . 'denote-rename-file)
@@ -1413,28 +1426,6 @@ be passed to EVAL-FUNC as its rest arguments"
   (with-eval-after-load 'evil
     (evil-collection-define-key 'normal 'dired-mode-map
       "i" 'dired-subtree-toggle)))
-
-(use-package eat
-  :vc (:fetcher "codeberg" :repo "akib/emacs-eat")
-  :hook
-  (eshell-load . 'eat-eshell-mode)
-  :bind
-  ("<leader>'" . 'lc/eshell-toggle)
-  (:map eat-mode-map
-        ("]]" . 'eat-previous-shell-prompt)
-        ("[[" . 'eat-next-shell-prompt)
-        )
-  :preface
-  (defun lc/eshell-toggle ()
-    "Open or switch to an eshell buffer in the other window"
-    (interactive)
-    (if (get-buffer "*eshell*")
-        (switch-to-buffer-other-window "*eshell*")
-      (progn
-        (split-window-horizontally)
-        (other-window 1)
-        (project-eshell))))
-  )
 
 (use-package eshell
   :ensure nil
@@ -1842,25 +1833,18 @@ any directory proferred by `consult-dir'."
   :ensure nil
   :custom
   (treesit-font-lock-level 3)
-  :hook
-  (lsp-mode . (lambda ()
-                (when (treesit-ready-p 'python)
-                  (unless (member '(python-mode . python-ts-mode) major-mode-remap-alist)
-                    (add-to-list 'major-mode-remap-alist '(python-mode . python-ts-mode))))))
-  :preface
-  (defun lc/init-py-ts-mode ()
-    (when (treesit-ready-p 'python)
-      (add-to-list 'major-mode-remap-alist '(python-mode . python-ts-mode))))
   :init
   (require 'treesit)
-  (advice-add 'tab-switch :after (lambda (_) (interactive) (lc/init-py-ts-mode)))
   )
 
 (use-package treemacs
   :bind
   ("<leader>tp" . 'treemacs)
   (:map evil-treemacs-state-map
-        ("SPC" . evil-send-leader))
+        ("SPC" . evil-send-leader)
+        ("<leader>SPC" . execute-extended-command)
+        ("<leader>wl" . windmove-right)
+        )
   :config
   (use-package treemacs-evil :demand t)
   (use-package treemacs-tab-bar
@@ -1905,6 +1889,7 @@ any directory proferred by `consult-dir'."
 (use-package vterm-toggle
   :bind
   ("<leader>pt" . 'vterm-toggle)
+  ("<leader>'" . 'vterm-toggle)
   :custom
   (vterm-toggle-scope 'project))
 
@@ -1939,16 +1924,29 @@ any directory proferred by `consult-dir'."
   :custom
   (lsp-restart 'ignore)
   (lsp-eldoc-enable-hover nil)
-  (lsp-enable-file-watchers nil)
   (lsp-signature-auto-activate nil)
-  (lsp-modeline-diagnostics-enable nil)
+  ;; (lsp-eldoc-render-all nil)
+  (lsp-enable-file-watchers nil)
   (lsp-keep-workspace-alive nil)
   (lsp-auto-execute-action nil)
   (lsp-before-save-edits nil)
   (lsp-headerline-breadcrumb-enable nil)
+  (lsp-modeline-diagnostics-enable nil)
   (lsp-diagnostics-provider :none)
   :config
   (add-to-list 'lsp-language-id-configuration '(python-ts-mode . "python"))
+  )
+
+(use-package lsp-ui
+  :bind
+  ("<localleader>g" . 'lsp-ui-doc-glance)
+  :custom
+  (lsp-ui-doc-show-with-cursor nil) ;; change this to t for auto doc
+  (lsp-ui-doc-delay 2)
+  (lsp-ui-doc-show-with-mouse nil)
+  (lsp-ui-sideline-enable nil)
+  ;; (lsp-ui-sideline-show-diagnostics nil)
+  ;; (lsp-ui-sideline-show-hover nil)
   )
 
 (use-package clojure-mode
@@ -2009,7 +2007,13 @@ any directory proferred by `consult-dir'."
 
 (use-package python-mode
   :ensure nil
+  :preface
+  (defun lc/init-py-ts-mode ()
+    (when (treesit-ready-p 'python)
+      (unless (member '(python-mode . python-ts-mode) major-mode-remap-alist)
+        (add-to-list 'major-mode-remap-alist '(python-mode . python-ts-mode)))))
   :init
+  (lc/init-py-ts-mode)
   (setq python-indent-guess-indent-offset nil))
 
 (use-package csv-mode
@@ -2058,7 +2062,7 @@ any directory proferred by `consult-dir'."
            (colors (loop for i from 0 to 1.0 by (/ 2.0 n)
                          collect (apply #'color-rgb-to-hex
                                         (color-hsl-to-rgb i 0.3 0.5)))))
-      (loop for i from 2 to n by 2
+      (cl-loop for i from 2 to n by 2
             for c in colors
             for r = (format "^\\([^%c\n]+%c\\)\\{%d\\}" separator separator i)
             do (font-lock-add-keywords nil `((,r (1 '(face (:foreground ,c)))))))))
@@ -2066,7 +2070,7 @@ any directory proferred by `consult-dir'."
 
 (use-package envrc
   :hook
-  (python-mode python-ts-mode org-jupyter-mode))
+  (python-ts-mode org-jupyter-mode))
 
 (use-package lsp-pyright
   :hook
@@ -2244,7 +2248,7 @@ any directory proferred by `consult-dir'."
   :bind
   (:map python-base-mode-map
         ("<localleader>ee" . 'jupyter-eval-line-or-region)
-        ("<visual-state><localleader>e" . 'jupyter-eval-line-or-region)
+        ;; ("<visual-state><localleader>e" . 'jupyter-eval-line-or-region)
         ("<localleader>ed" . 'jupyter-eval-defun)
         ("<localleader>eb" . 'jupyter-eval-buffer)
         ;; ("<localleader>eb" . (lambda () (interactive) (lc/jupyter-eval-buffer)))
@@ -2252,7 +2256,7 @@ any directory proferred by `consult-dir'."
         ("<localleader>kd" . 'lc/kill-repl-kernel)
         ("<localleader>ki" . 'jupyter-org-interrupt-kernel)
         ("<localleader>kr" . 'jupyter-repl-restart-kernel)
-        ;; ("<localleader>J" . 'lc/jupyter-repl)
+        ("<localleader>J" . 'lc/jupyter-repl)
         )
   (:map org-mode-map
         ("<localleader>=" . (lambda () (interactive) (jupyter-org-insert-src-block t nil)))
@@ -2265,7 +2269,7 @@ any directory proferred by `consult-dir'."
   (jupyter-repl-persistent-mode .   (lambda () (setq-local evil-lookup-func #'jupyter-inspect-at-point)))
   (jupyter-repl-interaction-mode .   (lambda () (setq-local evil-lookup-func #'jupyter-inspect-at-point)))
   (jupyter-repl-persistent-mode . (lambda ()  ;; we activate org-interaction-mode ourselves
-                                     (when (derived-mode-p 'org-mode) (jupyter-org-interaction-mode))))
+                                    (when (derived-mode-p 'org-mode) (jupyter-org-interaction-mode))))
   :custom
   (jupyter-repl-prompt-margin-width 4)
   (jupyter-eval-use-overlays nil)
@@ -2291,7 +2295,7 @@ any directory proferred by `consult-dir'."
     (interactive)
     (if jupyter-current-client
         (jupyter-with-repl-buffer jupyter-current-client
-                                  (kill-buffer (current-buffer)))
+          (kill-buffer (current-buffer)))
       (error "Buffer not associated with a REPL, see `jupyter-repl-associate-buffer'")))
   (defun lc/jupyter-toggle-overlays ()
     (interactive)
@@ -2301,8 +2305,27 @@ any directory proferred by `consult-dir'."
   (defun lc/jupyter-inspect-df (dataframe)
     "Save the df to csv and open the file with csv-mode"
     (interactive (list (read-from-minibuffer "DataFrame: " (evil-find-symbol nil))))
+    ;; (jupyter-eval (format
+    ;;                "%s.reset_index().assign(index='').rename(columns={'index': ''}).to_csv('%s', index=False, sep='|')"
+    ;;                dataframe lc/jupyter-temp-dataframe-path))
+    ;; (org-table-align)
     (jupyter-eval (format  "%s.to_csv('%s', index=False)" dataframe lc/jupyter-temp-dataframe-path))
     (find-file-other-window lc/jupyter-temp-dataframe-path))
+  (defun lc/eval-in-jupyter-repl (start end)
+    "Send region to Jupyter REPL and return to original buffer."
+    (interactive "P")
+    (let* ((current-buffer (current-buffer))
+           (region (when (use-region-p)
+                     (car (region-bounds))))
+           (start (car region))
+           (end (cdr region))
+           (content (buffer-substring
+                     (or start (line-beginning-position))
+                     (or end (line-end-position)))))
+      (jupyter-with-repl-buffer jupyter-current-client
+        (goto-char (point-max))
+        (insert content)
+        (jupyter-repl-ret))))
   :init
   ;; TODO refactor to avoid duplication of dap code
   (setq lc/jupyter-temp-dataframe-buffer  "*inspect-df*")
@@ -2313,12 +2336,11 @@ any directory proferred by `consult-dir'."
                '("\\*jupyter-output\\*\\|\\*jupyter-error\\*"
                  (cons 'display-buffer-no-window
                        '((allow-no-window . t)))))
-  :config
-  (require 'python)
-  (require 'treesit)
-  (evil-define-key 'normal 'python-ts-mode-map
-    (kbd "<localleader>J") 'lc/jupyter-repl)
-
+  (add-to-list
+   'display-buffer-alist
+   '("^\\*jupyter-repl" ; *
+     (display-buffer-below-selected)
+     (window-width . 0.33)))
   )
 
 (use-package emacs
@@ -2326,7 +2348,7 @@ any directory proferred by `consult-dir'."
   ((org-jupyter-mode . (lambda ()
                          ;; otherwise jupyter-associate-buffer will fail
                          (setq major-mode-remap-alist '())
-                         ;; (setq-local evil-lookup-func #'jupyter-inspect-at-point)
+                         (setq-local evil-lookup-func #'jupyter-inspect-at-point)
                          ;; disable annoying insert-new-line-and-indent behavior
                          (setq-local indent-line-function 'lc/no-indent)
                          ))
@@ -2381,7 +2403,7 @@ any directory proferred by `consult-dir'."
                               (setq header-line-format nil)
                               (message "killer jupyter kernel"))))
   :hook
-  (org-jupyter-mode . lc/init-jupyter)
+  (envrc-mode . lc/init-jupyter)
   :preface
   (defun lc/init-jupyter ()
     (interactive)
@@ -2426,6 +2448,31 @@ any directory proferred by `consult-dir'."
   :config
   ;; The officially recommended offset is 2.
   (setq stan-indentation-offset 2))
+
+(use-package rjsx-mode
+  :hook (rjsx-mode . rainbow-delimiters-mode)
+  )
+
+(use-package typescript-mode
+  :mode "\.ts\'"
+  :hook (typescript-mode . rainbow-delimiters-mode)
+  :hook (typescript-mode . lsp-deferred)
+  ;; :hook (typescript-tsx-mode . rainbow-delimiters-mode)
+  :hook (typescript-mode . (lambda () (lsp-deferred) (lsp-diagnostics-mode -1)))
+  :init
+  (define-derived-mode typescript-tsx-mode typescript-mode "TypeScript[tsx]")
+  (add-to-list 'auto-mode-alist '("\.tsx\'" . typescript-tsx-mode))
+  (add-hook 'typescript-tsx-mode-hook
+            (lambda () (tree-sitter-mode) (tree-sitter-hl-mode)))
+  :config (setq typescript-indent-level 2)
+)
+
+(use-package flymake-eslint
+  :hook
+  (typescript-mode . (lambda ()
+                       (flymake-eslint-enable)
+                       (setq-local flymake-eslint-project-root (locate-dominating-file buffer-file-name "tsconfig.json"))))
+  )
 
 (use-package evil
   :config
