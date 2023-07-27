@@ -32,6 +32,7 @@
  '(markdown-enable-html t)
  '(markdown-enable-math t)
  '(mouse-wheel-progressive-speed nil)
+ '(org-agenda-files nil)
  '(org-fold-catch-invisible-edits 'error nil nil "Customized with use-package org")
  '(org-hide-emphasis-markers t nil nil "Customized with use-package org")
  '(org-link-descriptive nil nil nil "Customized with use-package org")
@@ -43,14 +44,24 @@
      ("stable" . 70)
      ("melpa" . 0)))
  '(package-selected-packages
-   '(ibuffer-project aggressive-indent editorconfig combobulate treesit-auto org-appear denote evil-nerd-commenter evil-collection evil tabspaces helpful elisp-demos all-the-icons vertico orderless marginalia embark-consult embark corfu-terminal corfu consult cape))
+   '(pandoc-mode markdown-mode ibuffer-project aggressive-indent editorconfig combobulate treesit-auto org-appear denote evil-nerd-commenter evil-collection evil tabspaces helpful elisp-demos all-the-icons vertico orderless marginalia embark-consult embark corfu-terminal corfu consult cape))
+ '(package-vc-selected-packages
+   '((jupyter :vc-backend Git :url "https://github.com/nnicandro/emacs-jupyter")
+     (xwwp-full :vc-backend Git :url "https://github.com/kchanqvq/xwwp")
+     (org-remoteimg :vc-backend Git :url "https://github.com/gaoDean/org-remoteimg")
+     (copilot :vc-backend Git :url "https://github.com/zerolfx/copilot.el")
+     (chatgpt-shell :vc-backend Git :url "https://github.com/xenodium/chatgpt-shell")
+     (evil-iedit-state :vc-backend Git :url "https://github.com/kassick/evil-iedit-state")
+     (evil-org-mode :vc-backend Git :url "https://github.com/hlissner/evil-org-mode")
+     (sideline-flymake :vc-backend Git :url "https://github.com/emacs-sideline/sideline-flymake")
+     (vc-use-package :vc-backend Git :url "https://github.com/slotThe/vc-use-package")))
  '(scroll-conservatively 101)
  '(scroll-margin 0)
  '(scroll-preserve-screen-position t)
  '(switch-to-buffer-in-dedicated-window 'pop)
  '(switch-to-buffer-obey-display-actions t)
  '(tabspaces-mode t)
- '(xref-show-definitions-function 'xref-show-definitions-completing-read t))
+ '(xref-show-definitions-function 'xref-show-definitions-completing-read))
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.

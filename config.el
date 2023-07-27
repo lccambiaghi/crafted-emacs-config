@@ -1187,7 +1187,8 @@ be passed to EVAL-FUNC as its rest arguments"
                ":PROPERTIES:\n:CAPTURED: %U\n:END:\n\n"
                "%i%?"))))
   :init
-  (setq org-agenda-files (mapcar (lambda (f) (concat lc/beorg-folder f)) '("inbox.org" "20230623T103529--birthdays__life.org")))
+  (when (eq system-type 'darwin)
+    (setq org-agenda-files (mapcar (lambda (f) (concat lc/beorg-folder f)) '("inbox.org" "20230623T103529--birthdays__life.org"))))
   )
 
 (use-package org
@@ -1365,7 +1366,7 @@ be passed to EVAL-FUNC as its rest arguments"
      (format-time-string "%A %e %B %Y") ; format like Tuesday 14 June 2022
      '("journal"))) ; multiple keywords are a list of strings: '("one" "two")
   :init
-  (setq denote-directory "/Users/cambiaghiluca/OneDrive - The Boston Consulting Group, Inc/Documents/denote")
+  (setq denote-directory "~/OneDrive - The Boston Consulting Group, Inc/Documents/denote")
   (setq lc/gpt-prompts-file (concat denote-directory "/20230330T145824--useful-gpt-prompts__llm_org.org"))
   )
 

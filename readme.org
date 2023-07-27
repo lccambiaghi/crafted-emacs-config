@@ -1673,7 +1673,8 @@ NOTE:
                ":PROPERTIES:\n:CAPTURED: %U\n:END:\n\n"
                "%i%?"))))
   :init
-  (setq org-agenda-files (mapcar (lambda (f) (concat lc/beorg-folder f)) '("inbox.org" "20230623T103529--birthdays__life.org")))
+  (when (string-equal system-type "darwin")
+    (setq org-agenda-files (mapcar (lambda (f) (concat lc/beorg-folder f)) '("inbox.org" "20230623T103529--birthdays__life.org"))))
   )
 #+end_src
 
@@ -1908,7 +1909,7 @@ NOTE:
      (format-time-string "%A %e %B %Y") ; format like Tuesday 14 June 2022
      '("journal"))) ; multiple keywords are a list of strings: '("one" "two")
   :init
-  (setq denote-directory "/Users/cambiaghiluca/OneDrive - The Boston Consulting Group, Inc/Documents/denote")
+  (setq denote-directory "~/OneDrive - The Boston Consulting Group, Inc/Documents/denote")
   (setq lc/gpt-prompts-file (concat denote-directory "/20230330T145824--useful-gpt-prompts__llm_org.org"))
   )
 #+end_src
