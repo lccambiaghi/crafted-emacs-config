@@ -7,7 +7,7 @@
 
 (use-package emacs
   :init
-  (defvar lc/config-directory crafted-config-path)
+  (defvar lc/config-directory "~/.config/emacs/")
   (defvar lc/use-xwidget-browser nil)
   (defvar lc/light-theme 'modus-operandi)
   (defvar lc/dark-theme 'modus-vivendi)
@@ -25,8 +25,9 @@
                 (add-hook 'after-save-hook #'org-babel-tangle-config)))
   :init
   (defun org-babel-tangle-config ()
+    (interactive)
     (when (string-equal (buffer-file-name)
-                        (expand-file-name "readme.org" crafted-config-path))
+                        (expand-file-name "readme.org" lc/config-directory))
       ;; Dynamic scoping to the rescue
       (let ((org-confirm-babel-evaluate nil))
         (org-babel-tangle)))))
@@ -171,24 +172,6 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
   (require 'no-littering)
   (add-to-list 'recentf-exclude no-littering-var-directory)
   (add-to-list 'recentf-exclude no-littering-etc-directory))
-
-  (require 'crafted-defaults)    ; Sensible default settings for Emacs
-  ;; (require 'crafted-updates)     ; Tools to upgrade Crafted Emacs
-  (require 'crafted-completion)  ; selection framework based on `vertico`
-  (require 'crafted-ui)          ; Better UI experience (modeline etc.)
-  (require 'crafted-windows)     ; Window management configuration
-  (require 'crafted-editing)     ; Whitspace trimming, auto parens etc.
-  (require 'lc-osx)
-  (require 'crafted-evil)        ; An `evil-mode` configuration
-  (require 'crafted-org)         ; org-appear, clickable hyperlinks etc.
-  (require 'crafted-project)     ; built-in alternative to projectile
-  (require 'crafted-startup)     ; splash scren
-  (require 'crafted-workspaces)
-  ;; (require 'crafted-speedbar)    ; built-in file-tree
-  ;; (require 'crafted-screencast)  ; show current command and binding in modeline
-  ;; (require 'crafted-compile)     ; automatically compile some emacs lisp files
-  ;; (require 'crafted-python)
-  (require 'crafted-ide)
 
 (use-package emacs
   :init
@@ -453,6 +436,7 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
   )
 
 (use-package evil
+:demand
   :hook
   (edebug-mode . (lambda () (require 'evil-collection-edebug) (evil-normalize-keymaps)))
   :custom
@@ -488,6 +472,7 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
   )
 
 (use-package evil-collection
+:demand
   :config
   (evil-collection-edebug-setup)
   (evil-collection-init 'help)
@@ -752,12 +737,15 @@ be passed to EVAL-FUNC as its rest arguments"
             keys))))
   )
 
+(use-package request
+:commands request)
+
 (use-package emacs
   :bind
   ("<leader>cb" . 'lc/gpt-complete-buffer-and-insert)
-  (:map evil-visual-state-map
-        ("<leader>cr" . 'lc/gpt-complete-region-and-insert)
-        ("<leader>cp" . 'lc/gpt-complete-with-prompt-prefix-and-insert))
+;;  (:map evil-visual-state-map
+;;        ("<leader>cr" . 'lc/gpt-complete-region-and-insert)
+;;        ("<leader>cp" . 'lc/gpt-complete-with-prompt-prefix-and-insert))
   :init
   (setq lc/gpt-api-key-getter (lambda () (auth-source-pick-first-password :host "chat.openai.com")))
   ;; (setq lc/gpt-model 'gpt-3.5-turbo-0301)
@@ -1342,10 +1330,18 @@ be passed to EVAL-FUNC as its rest arguments"
   (corfu-max-width corfu-min-width)
   (corfu-auto nil)
   (tab-always-indent 'complete)
-  :config
-  (corfu-popupinfo-mode -1)
-  (global-corfu-mode -1)
+  ;; :config
+  ;; (corfu-popupinfo-mode -1)
+  ;; (global-corfu-mode -1)
 )
+
+(use-package embark
+  :bind
+  ("C-l" . 'embark-act)
+  ;; (:keymaps 'embark-file-map
+  ;;           ;; "o" 'find-file-other-window
+  ;;           "x" 'lc/dired-open-externally)
+  )
 
 (use-package denote
   :hook
@@ -1426,257 +1422,6 @@ be passed to EVAL-FUNC as its rest arguments"
   (with-eval-after-load 'evil
     (evil-collection-define-key 'normal 'dired-mode-map
       "i" 'dired-subtree-toggle)))
-
-(use-package eshell
-  :ensure nil
-  :bind
-  ("<insert-state><up>" . 'eshell-previous-matching-input-from-input)
-  :custom
-  (eshell-directory-name (concat no-littering-etc-directory "eshell/"))
-  ;; auto truncate after 20k lines
-  (eshell-buffer-maximum-lines 20000)
-  (eshell-scroll-to-bottom-on-input 'all)
-  (eshell-scroll-to-bottom-on-output 'all)
-  ;; ls
-  (eshell-ls-use-colorls t)
-  (eshell-ls-use-in-dired nil)
-  (eshell-aliases-file (concat no-littering-etc-directory "eshell/alias"))
-  :init
-  (defvar eshell-prompt-number 0
-    "Set a prompt number for eshell.")
-  (defvar lem-eshell-aliases
-    '(;; Git
-      ("gg" "magit-status")
-
-      ;; Listing
-      ("ls"  "ls -1X $*")
-      ("la" "ls -laX $*")
-      ("ll" "ls -lahsX $*")
-
-      ;; Navigation
-      ("bb" "consult-buffer")
-      ("bd" "eshell-up $1")
-      ("d" "dired $1")
-      ("e" "find-file $1")
-      ("em" "find-file $1")
-      ("ed" (eshell/cd "~/.emacs.d"))
-      ("ff" "find-file $1")
-      ("fo" "find-file-other-window $1")
-      ("fr" (consult-recent-file))
-      ("pp" "project-switch-project")
-      ("pk" "eshell-up-peek $1")
-      ("up" "eshell-up $1")
-
-      ;; Search
-      ("rg" "rg --color=always $*")
-
-      ;; vterm
-      ("vt" "eshell/vterm")
-
-      ;; Quitting
-      ("ex" "exit")
-      ("x" "exit")
-      ("q"  "exit")
-      ("qr" "restart-emacs")
-      ("qq" "save-buffers-kill-emacs")
-      ))
-  ;; Define a var to backup aliases that may already exist
-  (defvar lem-eshell--default-aliases nil)
-  (setq eshell-command-aliases-list lem-eshell-aliases)
-  (setq eshell-prompt-function #'lem-eshell-config--prompt-function)
-  (advice-add #'eshell-write-aliases-list :override #'ignore)
-  (add-hook 'eshell-mode-hook #'lem-setup-eshell)
-  (add-hook 'eshell-directory-change-hook #'lem-eshell-list-files-on-cd)
-  ;; Implement a "prompt number" section
-  (add-hook 'eshell-exit-hook (lambda () (setq eshell-prompt-number 0)))
-  (advice-add 'eshell-send-input :before
-              (lambda (&rest args) (setq eshell-prompt-number (+ 1 eshell-prompt-number))))
-
-  :config
-  ;; See https://github.com/doomemacs/doomemacs/blob/master/modules/term/eshell/
-  (setq lem-eshell--default-aliases eshell-command-aliases-list
-        eshell-command-aliases-list
-        (append eshell-command-aliases-list
-                lem-eshell-aliases))
-  :preface
-  ;; Prompt char
-  (defun lem-eshell-config--prompt-char ()
-    "Return shell character."
-    (format "%s" "λ"))
-
-  (defun lem--pwd-replace-home (pwd)
-    "Replace home in PWD with tilde (~) character."
-    (interactive)
-    (let* ((home (expand-file-name (getenv "HOME")))
-           (home-len (length home)))
-      (if (and
-           (;; <
-            >= home-len (length pwd) )
-           (equal home (substring pwd 0 home-len)))
-          (concat "~" (substring pwd home-len))
-        pwd)))
-
-  (defun lem--pwd-shorten-dirs (pwd)
-    "Shorten all directory names in PWD except the last two."
-    (let ((p-lst (split-string pwd "/")))
-      (if (;; <
-           > (length p-lst) 2)
-          (concat
-           (mapconcat (lambda (elm) (if (zerop (length elm)) ""
-                                      (substring elm 0 1)))
-                      (butlast p-lst 2)
-                      "/")
-           "/"
-           (mapconcat (lambda (elm) elm)
-                      (last p-lst 2)
-                      "/"))
-        ;; Otherwise, we just return the PWD
-        pwd)))
-
-  (defun lem--split-directory-prompt (directory)
-    (if (string-match-p ".*/.*" directory)
-        (list (file-name-directory directory) (file-name-base directory))
-      (list "" directory)))
-
-  (defun lem-eshell-config--prompt-function ()
-    "Prettify eshell prompt."
-    (let* ((os-char (cond ((string-equal system-type "darwin") "")
-                          ((string-equal system-type "gnu/linux") "🐧")
-                          ((string-equal system-type "cygwin") "🗔")
-                          (t "?")))
-           (pwd        (eshell/pwd))
-           (directory (lem--split-directory-prompt
-                       (lem--pwd-shorten-dirs
-                        (lem--pwd-replace-home pwd))))
-           (parent (car directory))
-           (name   (cadr directory)))
-
-      (concat (propertize "\n╭─ " 'face 'lambda-mild)
-              (propertize (format "%s" os-char) 'face 'lambda-meek)
-              (propertize " ─ "  'face 'lambda-mild)
-              (propertize (format-time-string "%H:%M:%S" (current-time))  'face 'lambda-meek)
-              (propertize " ─ "  'face 'lambda-mild) (propertize "\xf07c  "  'face 'lambda-meek)
-              (propertize parent 'face 'lambda-meek)
-              (propertize name 'face `(:inherit lambda-meek :weight bold))
-              "\n"
-              (propertize (concat "│" (number-to-string eshell-prompt-number))   'face 'lambda-mild)
-              "\n"
-              (propertize "╰─>>"  'face 'lambda-mild)
-              ;; (if branch branch " ")
-              (propertize (lem-eshell-config--prompt-char) 'face `(:inherit lambda-yellow :weight ultra-bold))
-              ;; needed for the input text to not have prompt face
-              (propertize " " 'face 'default))))
-
-  (defun lem-set-eshell-alias (&rest aliases)
-    (or (cl-evenp (length aliases))
-        (signal 'wrong-number-of-arguments (list 'even (length aliases))))
-    (with-eval-after-load 'em-alias
-      (while aliases
-        (let ((alias (pop aliases))
-              (command (pop aliases)))
-          (if-let* ((oldval (assoc alias lem-eshell-aliases)))
-              (setcdr oldval (list command))
-            (push (list alias command) lem-eshell-aliases))))
-      (when (boundp 'eshell-command-aliases-list)
-        (if lem-eshell--default-aliases
-            (setq eshell-command-aliases-list
-                  (append lem-eshell--default-aliases lem-eshell-aliases))
-          (setq eshell-command-aliases-list lem-eshell-aliases)))))
-
-  (defun lem-eshell-home ()
-    "Open eshell in home dir."
-    (interactive)
-    (let ((default-directory "~/"))
-      (require 'eshell)
-      (eshell)))
-
-  ;; Open an eshell in current dir, with project as name.
-  ;; If called with universal arg, open in home dir.
-  (defun lem-call-eshell (&optional arg)
-    "Open `eshell' in current dir, with project as name.
-If called with universal arg, open in home dir."
-    (interactive "P")
-    (if arg
-        (lem-eshell-home)
-      (eshell)))
-
-;;;;; Jump Directories (w/Consult & Consult-Dir)
-  (defun eshell/z (&optional regexp)
-    "Navigate to a previously visited directory in eshell, or to
-any directory proferred by `consult-dir'."
-    (let ((eshell-dirs (delete-dups
-                        (mapcar 'abbreviate-file-name
-                                (ring-elements eshell-last-dir-ring)))))
-      (cond
-       ((and (not regexp) (featurep 'consult-dir))
-        (let* ((consult-dir--source-eshell `(:name "Eshell"
-                                                   :narrow ?e
-                                                   :category file
-                                                   :face consult-file
-                                                   :items ,eshell-dirs))
-               (consult-dir-sources (cons consult-dir--source-eshell
-                                          consult-dir-sources)))
-          (eshell/cd (substring-no-properties
-                      (consult-dir--pick "Switch directory: ")))))
-       (t (eshell/cd (if regexp (eshell-find-previous-directory regexp)
-                       (completing-read "cd: " eshell-dirs)))))))
-
-
-  (defun eshell/vterm ()
-    "Open the current directory of the eshell buffer in vterm."
-    (interactive)
-    (let ((default-directory (eshell/pwd)))
-      (vterm)))
-
-(defun eshell-clear-buffer ()
-  "Clear terminal"
-  (interactive)
-  (let ((inhibit-read-only t))
-    (erase-buffer)
-    (eshell-send-input)))
-
-;;;; Setup Hooks
-  (defun lem-setup-eshell ()
-    (interactive)
-    ;; Clear eshell keybind
-    (local-set-key (kbd "C-l") 'eshell-clear-buffer)
-    ;; Use imenu to jump prompts
-    ;; https://xenodium.com/imenu-on-emacs-eshell/
-    (setq-local imenu-generic-expression
-                '(("Prompt" " λ \\(.*\\)" 1)))
-    ;; Turn off semantic-mode in eshell buffers
-    (semantic-mode -1)
-    ;; Turn off hl-line-mode
-    (hl-line-mode -1)
-    ;; Remove fringe
-    (set-window-fringes nil 0 0)
-    (set-window-margins nil 1 nil)
-    ;; Scrolling
-    (setq hscroll-margin 0)
-    ;; Text wrapping
-    (visual-line-mode +1)
-    (set-display-table-slot standard-display-table 0 ?\ ))
-
-  ;; ls files on cd
-  (defun lem-eshell-list-files-on-cd ()
-    "Use ls to show files w/directories first."
-    (eshell/ls "-1X"))
-  )
-
-;;;; Syntax Highlighting
-(use-package eshell-syntax-highlighting
-  :after eshell
-  :config
-  ;; Enable in all Eshell buffers.
-  (eshell-syntax-highlighting-global-mode +1))
-
-(use-package embark
-  :bind
-  ("C-l" . 'embark-act)
-  ;; (:keymaps 'embark-file-map
-  ;;           ;; "o" 'find-file-other-window
-  ;;           "x" 'lc/dired-open-externally)
-  )
 
 (use-package eros
   :commands
@@ -1787,7 +1532,7 @@ any directory proferred by `consult-dir'."
   ("<leader>TAB h" . 'tab-bar-switch-to-prev-tab)
   ("<leader>TAB l" . 'tab-bar-switch-to-next-tab)
   ("<leader>oc" . (lambda () (interactive)
-                         (tabspaces-switch-or-create-workspace "crafted-emacs")
+                         (tabspaces-switch-or-create-workspace "config")
                          (find-file (concat lc/config-directory "/readme.org"))))
   :custom
   (tabspaces-use-filtered-buffers-as-default t)
@@ -2115,7 +1860,7 @@ any directory proferred by `consult-dir'."
    ;; (dap-session-created . (lambda (_arg) (projectile-save-project-buffers)))
    (dap-ui-repl-mode . (lambda () (setq-local truncate-lines t))))
   :bind
-  (:map python-base-mode-map
+  (:map lsp-mode-map
         ("<localleader>dd" . 'dap-debug)
         ("<localleader>db" . 'dap-breakpoint-toggle)
         ;; "d B" '(dap-ui-breakpoints-list :wk "breakpoint list")

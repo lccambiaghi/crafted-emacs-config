@@ -96,7 +96,7 @@ In order of appearance in my config:
 #+begin_src emacs-lisp
 (use-package emacs
   :init
-  (defvar lc/config-directory crafted-config-path)
+  (defvar lc/config-directory "~/.config/emacs/")
   (defvar lc/use-xwidget-browser nil)
   (defvar lc/light-theme 'modus-operandi)
   (defvar lc/dark-theme 'modus-vivendi)
@@ -118,8 +118,9 @@ In order of appearance in my config:
                 (add-hook 'after-save-hook #'org-babel-tangle-config)))
   :init
   (defun org-babel-tangle-config ()
+    (interactive)
     (when (string-equal (buffer-file-name)
-                        (expand-file-name "readme.org" crafted-config-path))
+                        (expand-file-name "readme.org" lc/config-directory))
       ;; Dynamic scoping to the rescue
       (let ((org-confirm-babel-evaluate nil))
         (org-babel-tangle)))))
@@ -315,28 +316,6 @@ Note:
   (require 'no-littering)
   (add-to-list 'recentf-exclude no-littering-var-directory)
   (add-to-list 'recentf-exclude no-littering-etc-directory))
-#+end_src
-
-** Crafted Modules
-
-#+begin_src emacs-lisp
-  (require 'crafted-defaults)    ; Sensible default settings for Emacs
-  ;; (require 'crafted-updates)     ; Tools to upgrade Crafted Emacs
-  (require 'crafted-completion)  ; selection framework based on `vertico`
-  (require 'crafted-ui)          ; Better UI experience (modeline etc.)
-  (require 'crafted-windows)     ; Window management configuration
-  (require 'crafted-editing)     ; Whitspace trimming, auto parens etc.
-  (require 'lc-osx)
-  (require 'crafted-evil)        ; An `evil-mode` configuration
-  (require 'crafted-org)         ; org-appear, clickable hyperlinks etc.
-  (require 'crafted-project)     ; built-in alternative to projectile
-  (require 'crafted-startup)     ; splash scren
-  (require 'crafted-workspaces)
-  ;; (require 'crafted-speedbar)    ; built-in file-tree
-  ;; (require 'crafted-screencast)  ; show current command and binding in modeline
-  ;; (require 'crafted-compile)     ; automatically compile some emacs lisp files
-  ;; (require 'crafted-python)
-  (require 'crafted-ide)
 #+end_src
 
 ** Popup management
@@ -748,6 +727,7 @@ Note:
 
 #+begin_src emacs-lisp
 (use-package evil
+:demand
   :hook
   (edebug-mode . (lambda () (require 'evil-collection-edebug) (evil-normalize-keymaps)))
   :custom
@@ -787,6 +767,7 @@ Note:
 
 #+begin_src emacs-lisp
 (use-package evil-collection
+:demand
   :config
   (evil-collection-edebug-setup)
   (evil-collection-init 'help)
@@ -1170,12 +1151,15 @@ def convert_miles_to_km():
 :END:
 
 #+begin_src emacs-lisp
+(use-package request
+:commands request)
+
 (use-package emacs
   :bind
   ("<leader>cb" . 'lc/gpt-complete-buffer-and-insert)
-  (:map evil-visual-state-map
-        ("<leader>cr" . 'lc/gpt-complete-region-and-insert)
-        ("<leader>cp" . 'lc/gpt-complete-with-prompt-prefix-and-insert))
+;;  (:map evil-visual-state-map
+;;        ("<leader>cr" . 'lc/gpt-complete-region-and-insert)
+;;        ("<leader>cp" . 'lc/gpt-complete-with-prompt-prefix-and-insert))
   :init
   (setq lc/gpt-api-key-getter (lambda () (auth-source-pick-first-password :host "chat.openai.com")))
   ;; (setq lc/gpt-model 'gpt-3.5-turbo-0301)
@@ -1811,10 +1795,7 @@ NOTE:
   )
 #+end_src
 
-* Other packages 
-:PROPERTIES:
-:ID:       02101696-D85E-4A96-8EEE-8D19FE710F1B
-:END:
+* Completion and narrowing
 ** consult
 
 #+begin_src emacs-lisp
@@ -1880,12 +1861,28 @@ NOTE:
   (corfu-max-width corfu-min-width)
   (corfu-auto nil)
   (tab-always-indent 'complete)
-  :config
-  (corfu-popupinfo-mode -1)
-  (global-corfu-mode -1)
+  ;; :config
+  ;; (corfu-popupinfo-mode -1)
+  ;; (global-corfu-mode -1)
 )
 #+end_src
 
+** embark
+
+#+begin_src emacs-lisp
+(use-package embark
+  :bind
+  ("C-l" . 'embark-act)
+  ;; (:keymaps 'embark-file-map
+  ;;           ;; "o" 'find-file-other-window
+  ;;           "x" 'lc/dired-open-externally)
+  )
+#+end_src
+
+* Other packages 
+:PROPERTIES:
+:ID:       02101696-D85E-4A96-8EEE-8D19FE710F1B
+:END:
 ** denote
 
 #+begin_src emacs-lisp
@@ -2006,7 +2003,7 @@ NOTE:
   )
 #+end_src
 
-*** eshell settings
+*** COMMENT eshell settings
 
 #+begin_src emacs-lisp
 (use-package eshell
@@ -2253,18 +2250,6 @@ any directory proferred by `consult-dir'."
   (eshell-syntax-highlighting-global-mode +1))
 #+end_src
 
-** embark
-
-#+begin_src emacs-lisp
-(use-package embark
-  :bind
-  ("C-l" . 'embark-act)
-  ;; (:keymaps 'embark-file-map
-  ;;           ;; "o" 'find-file-other-window
-  ;;           "x" 'lc/dired-open-externally)
-  )
-#+end_src
-
 ** eros
 
 #+begin_src emacs-lisp
@@ -2413,7 +2398,7 @@ any directory proferred by `consult-dir'."
   ("<leader>TAB h" . 'tab-bar-switch-to-prev-tab)
   ("<leader>TAB l" . 'tab-bar-switch-to-next-tab)
   ("<leader>oc" . (lambda () (interactive)
-                         (tabspaces-switch-or-create-workspace "crafted-emacs")
+                         (tabspaces-switch-or-create-workspace "config")
                          (find-file (concat lc/config-directory "/readme.org"))))
   :custom
   (tabspaces-use-filtered-buffers-as-default t)
@@ -2868,7 +2853,7 @@ layout python /usr/local/homebrew/bin/python3.9
    ;; (dap-session-created . (lambda (_arg) (projectile-save-project-buffers)))
    (dap-ui-repl-mode . (lambda () (setq-local truncate-lines t))))
   :bind
-  (:map python-base-mode-map
+  (:map lsp-mode-map
         ("<localleader>dd" . 'dap-debug)
         ("<localleader>db" . 'dap-breakpoint-toggle)
         ;; "d B" '(dap-ui-breakpoints-list :wk "breakpoint list")
@@ -3364,4 +3349,8 @@ Notes:
   )
 #+end_src 
 
-
+* To be fixed
+** TODO add to README how to install crafted emacs
+** TODO remove :demand from evil and evil-collection
+** TODO review TAB and completion buffer
+** TODO remove treesit-auto install all libraries
