@@ -21,6 +21,7 @@
  '(evil-respect-visual-line-mode t)
  '(evil-undo-system 'undo-redo)
  '(evil-want-C-h-delete t)
+ '(evil-want-C-i-jump t nil nil "Customized with use-package evil")
  '(evil-want-integration t)
  '(evil-want-keybinding nil)
  '(fast-but-imprecise-scrolling t)
@@ -44,7 +45,7 @@
      ("stable" . 70)
      ("melpa" . 0)))
  '(package-selected-packages
-   '(pandoc-mode markdown-mode ibuffer-project aggressive-indent editorconfig combobulate treesit-auto org-appear denote evil-nerd-commenter evil-collection evil tabspaces helpful elisp-demos all-the-icons vertico orderless marginalia embark-consult embark corfu-terminal corfu consult cape))
+   '(pandoc-mode markdown-mode ibuffer-project aggressive-indent editorconfig combobulate treesit-auto org-appear denote evil-collection evil tabspaces helpful elisp-demos all-the-icons vertico orderless marginalia embark-consult embark corfu-terminal corfu consult cape))
  '(package-vc-selected-packages
    '((jupyter :vc-backend Git :url "https://github.com/nnicandro/emacs-jupyter")
      (xwwp-full :vc-backend Git :url "https://github.com/kchanqvq/xwwp")

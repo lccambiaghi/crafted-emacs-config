@@ -46,6 +46,10 @@
 
 (use-package emacs
   :init
+  (fset 'yes-or-no-p 'y-or-n-p))
+
+(use-package emacs
+  :init
   (electric-indent-mode -1))
 
 (use-package bookmark
@@ -248,8 +252,55 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
   )
 
 (use-package emacs
+  :hook (after-init . lc/set-font-size)
   :init
-  (setq crafted-startup-inhibit-splash t))
+  (defcustom lc/default-font-family "fira code" 
+    "Default font family"
+    :type 'string
+    :group 'lc)
+
+  (defcustom lc/variable-pitch-font-family "Sans Serif" ;; "cantarell" ;; 
+    "Variable pitch font family"
+    :type 'string
+    :group 'lc)
+  
+  (defcustom lc/laptop-font-size 150
+    ;; (if lc/is-windows 100 150)
+    "Font size used for laptop"
+    :type 'int
+    :group 'lc)
+  
+  (defcustom lc/monitor-font-size
+    120
+    "Font size used for laptop"
+    :type 'int
+    :group 'lc)
+
+  (defcustom lc/theme nil
+    "Current theme (light or dark)"
+    :type 'symbol
+    :options '(light dark)
+    :group 'lc)
+  
+  (defun lc/get-font-size ()
+    "font size is calculated according to the size of the primary screen"
+    (let* (;; (command "xrandr | awk '/primary/{print sqrt( ($(nf-2)/10)^2 + ($nf/10)^2 )/2.54}'")
+           (command "osascript -e 'tell application \"finder\" to get bounds of window of desktop' | cut -d',' -f3")
+           (screen-width (string-to-number (shell-command-to-string command))))  ;;<
+      (if (> screen-width 2560) lc/monitor-font-size lc/laptop-font-size))) 
+  (defun lc/set-font-size ()
+    (interactive)
+    ;; Main typeface
+    (set-face-attribute 'default nil :family lc/default-font-family :height (lc/get-font-size))
+    ;; Set the fixed pitch face (monospace)
+    (set-face-attribute 'fixed-pitch nil :family lc/default-font-family)
+    ;; Set the variable pitch face
+    (set-face-attribute 'variable-pitch nil :family lc/variable-pitch-font-family)
+    ;; modeline
+    (set-face-attribute 'mode-line nil :family lc/default-font-family :height (lc/get-font-size))
+    (set-face-attribute 'mode-line-inactive nil :family lc/default-font-family :height (lc/get-font-size))
+    )
+  )
 
 (use-package all-the-icons
   :config
@@ -436,7 +487,6 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
   )
 
 (use-package evil
-:demand
   :hook
   (edebug-mode . (lambda () (require 'evil-collection-edebug) (evil-normalize-keymaps)))
   :custom
@@ -472,10 +522,8 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
   )
 
 (use-package evil-collection
-:demand
-  :config
-  (evil-collection-edebug-setup)
-  (evil-collection-init 'help)
+  :hook
+  (helpful-mode . (lambda () (evil-collection-init 'help)))
   )
 
 (use-package evil
@@ -516,7 +564,6 @@ be passed to EVAL-FUNC as its rest arguments"
       (apply func beg end args)
       (goto-char end)))
 
-  (define-key emacs-lisp-mode-map (kbd "<normal-state> gr") nil)
   (define-key evil-motion-state-map "gr" 'evil-operator-eval)
   )
 
@@ -614,14 +661,8 @@ be passed to EVAL-FUNC as its rest arguments"
     (interactive "p")
     (dotimes (_ count) (+org--insert-item 'above))))
 
-(use-package evil-nerd-commenter
-  :bind
-  (:map evil-normal-state-map
-        ("gc" . 'evilnc-comment-operator)
-        ("gC" . 'evilnc-copy-and-comment-operator))
-  (:map evil-visual-state-map
-        ("gc" . 'evilnc-comment-operator)
-        ("gC" . 'evilnc-copy-and-comment-operator)))
+(use-package evil-commentary
+  :hook (evil-mode))
 
 (use-package evil-surround
   :init
@@ -1187,7 +1228,7 @@ be passed to EVAL-FUNC as its rest arguments"
                ":PROPERTIES:\n:CAPTURED: %U\n:END:\n\n"
                "%i%?"))))
   :init
-  (when (eq system-type 'darwin)
+  (when (string-equal system-type "darwin")
     (setq org-agenda-files (mapcar (lambda (f) (concat lc/beorg-folder f)) '("inbox.org" "20230623T103529--birthdays__life.org"))))
   )
 
@@ -1403,16 +1444,19 @@ be passed to EVAL-FUNC as its rest arguments"
   :config
   (define-key dired-mode-map (kbd "<normal-state>i") nil)
   (define-key dired-mode-map (kbd "<normal-state>X") nil)
-  (evil-collection-define-key 'normal 'dired-mode-map
-    "X" 'lc/dired-open-externally
-    "F" 'lc/open-in-finder))
+  (with-eval-after-load 'evil-collection
+    (evil-collection-define-key 'normal 'dired-mode-map
+      "X" 'lc/dired-open-externally
+      "F" 'lc/open-in-finder))
+  )
 
 (use-package dired-hide-dotfiles
   :hook
   (dired-mode . dired-hide-dotfiles-mode)
   :config
-  (evil-collection-define-key 'normal 'dired-mode-map
-    "H" 'dired-hide-dotfiles-mode))
+  (with-eval-after-load 'evil-collection
+    (evil-collection-define-key 'normal 'dired-mode-map
+      "H" 'dired-hide-dotfiles-mode)))
 
 (use-package dired-subtree
   :init
@@ -1420,7 +1464,7 @@ be passed to EVAL-FUNC as its rest arguments"
               :after (lambda () (interactive)
                        (when all-the-icons-dired-mode (revert-buffer))))
   :config
-  (with-eval-after-load 'evil
+  (with-eval-after-load 'evil-collection
     (evil-collection-define-key 'normal 'dired-mode-map
       "i" 'dired-subtree-toggle)))
 
@@ -1986,8 +2030,9 @@ be passed to EVAL-FUNC as its rest arguments"
 
 (use-package emacs
   :init
-  (add-to-list 'native-comp-bootstrap-deny-list ".*jupyter.*")
-  (add-to-list 'native-comp-jit-compilation-deny-list ".*jupyter.*"))
+  ;; (add-to-list 'native-comp-bootstrap-deny-list ".*jupyter.*")
+  ;; (add-to-list 'native-comp-jit-compilation-deny-list ".*jupyter.*")
+)
 
 (use-package jupyter
   :vc (:fetcher "github" :repo "nnicandro/emacs-jupyter")
@@ -2265,6 +2310,7 @@ be passed to EVAL-FUNC as its rest arguments"
     (kbd "<leader>wu")  'winner-undo
     (kbd "<leader>wv")  'evil-window-vsplit
     (kbd "<leader>w=")  'balance-windows-area)
+  (define-key emacs-lisp-mode-map (kbd "<normal-state> gr") nil)
   (evil-define-key 'insert 'global
     (kbd "<leader>SPC") 'execute-extended-command
     (kbd "M-<tab>") 'complete-symbol)

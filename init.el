@@ -14,6 +14,8 @@
 (require 'crafted-completion-packages)
 (require 'crafted-ui-packages)
 (require 'crafted-evil-packages)
+(setq package-selected-packages
+      (remove 'evil-nerd-commenter package-selected-packages))
 (require 'crafted-org-packages)
 (require 'crafted-ide-packages)
 (require 'crafted-writing-packages)
