@@ -15,6 +15,7 @@
  '(completion-cycle-threshold 3)
  '(completions-detailed t)
  '(dired-auto-revert-buffer t)
+ '(dired-dwim-target t nil nil "Customized with use-package dired")
  '(ediff-window-setup-function 'ediff-setup-windows-plain t)
  '(eglot-autoshutdown t t)
  '(eshell-scroll-to-bottom-on-input 'this t nil "Customized with use-package eshell")
@@ -61,8 +62,9 @@
  '(scroll-preserve-screen-position t)
  '(switch-to-buffer-in-dedicated-window 'pop)
  '(switch-to-buffer-obey-display-actions t)
+ '(tab-always-indent 'complete nil nil "Customized with use-package corfu")
  '(tabspaces-mode t)
- '(xref-show-definitions-function 'xref-show-definitions-completing-read))
+ '(xref-show-definitions-function 'xref-show-definitions-completing-read t))
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
