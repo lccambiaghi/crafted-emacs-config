@@ -358,6 +358,15 @@ Note:
   (require 'vc-use-package))
 #+end_src
 
+** Set fill-column to 82 characters
+
+#+begin_src emacs-lisp
+(use-package emacs
+  :init
+  (setq-default fill-column 82)
+  )
+#+end_src
+
 * User interface
 :PROPERTIES:
 :ID:       9BC5F95A-DE45-4F06-BB2B-A3EA810FA11F
@@ -428,7 +437,6 @@ Note:
 
 #+begin_src emacs-lisp
 (use-package emacs
-  :hook (after-init . lc/set-font-size)
   :init
   (defcustom lc/default-font-family "fira code" 
     "Default font family"
@@ -476,6 +484,7 @@ Note:
     (set-face-attribute 'mode-line nil :family lc/default-font-family :height (lc/get-font-size))
     (set-face-attribute 'mode-line-inactive nil :family lc/default-font-family :height (lc/get-font-size))
     )
+  (add-hook 'after-init-hook #'lc/set-font-size)
   )
 #+end_src
 
@@ -525,14 +534,6 @@ Note:
   ("<leader>TAB H" . 'lc/go-to-dashboard)
   :preface
   (defun linum-mode (_) )
-  (defun lc/dashboard-insert-projects (list-size)
-    (dashboard-insert-section
-     "Projects:"
-     (mapcar (lambda (l) (car l)) (dashboard-subseq project--list 0 list-size))
-     list-size
-     "p"
-     `(lambda (&rest ignore) (tabspaces-open-or-create-project-and-workspace ,el))
-     (abbreviate-file-name el)))
   (defun lc/go-to-dashboard ()
     (interactive)
     (kill-matching-buffers dashboard-buffer-name nil 'no-ask)
@@ -551,8 +552,8 @@ Note:
           ))
   (setq dashboard-set-footer nil)
   (setq dashboard-filter-agenda-entry 'dashboard-no-filter-agenda)
+  (setq dashboard-projects-backend 'project-el)
   ;; (setq dashboard-match-agenda-entry nil)
-  (advice-add 'dashboard-insert-projects :override #'lc/dashboard-insert-projects)
   (dashboard-setup-startup-hook))
 #+end_src
 
@@ -822,7 +823,7 @@ Note:
 #+begin_src emacs-lisp
 (use-package evil-collection
   :hook
-  (helpful-mode . (lambda () (evil-collection-init 'help)))
+  (helpful-mode . (lambda () (evil-collection-init '(dired help))))
   )
 #+end_src
 
@@ -1230,8 +1231,8 @@ def convert_miles_to_km():
   (setq lc/gpt-api-key-getter (lambda () (auth-source-pick-first-password :host "chat.openai.com")))
   ;; (setq lc/gpt-model 'gpt-3.5-turbo-0301)
   ;; (setq lc/gpt-model 'gpt-4-0314)
-  ;; (setq lc/gpt-model 'gpt-4-0613)
-  (setq lc/gpt-model 'gpt-3.5-turbo-16k)
+  (setq lc/gpt-model 'gpt-4-0613)
+  ;; (setq lc/gpt-model 'gpt-3.5-turbo-16k)
   (setq lc/chat-model t)
   (setq lc/gpt-max-output-tokens 2000)
   (setq lc/gpt-temperature 0.1)
@@ -1800,6 +1801,7 @@ NOTE:
   :custom
   (org-modern-block-fringe 10)
   (org-use-sub-superscripts nil)
+  (org-pretty-entities-include-sub-superscripts nil)
   :hook
   (org-mode . org-modern-mode))
 #+end_src
@@ -1915,23 +1917,26 @@ NOTE:
     (consult-notes-denote-mode)))
 #+end_src
 
-** TODO corfu
+** corfu
 
 #+begin_src emacs-lisp
 (use-package corfu
+  :hook
+  (prog-mode . corfu-mode)
   :bind
   (:map corfu-map
         ("<insert-state><escape>" . 'corfu-quit))
+  ("<leader>tc" . (lambda () (interactive) (corfu-mode)))
   :custom
   (corfu-min-width 80)
   ;; Always have the same width
   (corfu-max-width corfu-min-width)
-  (corfu-auto nil)
+  ;; (corfu-auto nil)
   (tab-always-indent 'complete)
-  ;; :config
+  :config
   ;; (corfu-popupinfo-mode -1)
-  ;; (global-corfu-mode -1)
-)
+  (global-corfu-mode -1)
+  )
 #+end_src
 
 ** embark
@@ -2356,7 +2361,7 @@ any directory proferred by `consult-dir'."
   ("<leader>!j" . 'flymake-goto-next-error)
   ("<leader>!k" . 'flymake-goto-prev-error)
   :hook
-  (python-base-mode emacs-lisp-mode)
+  (python-ts-mode emacs-lisp-mode)
   :custom
   (flymake-fringe-indicator-position 'right-fringe))
 #+end_src
@@ -2781,7 +2786,7 @@ If invoked with OUTPUT-TO-CURRENT-BUFFER, output the result to current buffer."
 #+end_src
 
 ** Python
-*** python-ts-mode
+*** COMMENT python-ts-mode
 
 #+begin_src emacs-lisp
 (use-package python-mode
@@ -2875,7 +2880,7 @@ layout python /usr/local/homebrew/bin/python3.9
 #+begin_src emacs-lisp
 (use-package lsp-pyright
   :hook
-  (python-base-mode . (lambda ()
+  (python-ts-mode . (lambda ()
                         (require 'lsp-pyright)
                         (lc/init-pyright)
                         (lsp-deferred)
@@ -2883,6 +2888,7 @@ layout python /usr/local/homebrew/bin/python3.9
                         ))
   :custom
   (lsp-pyright-typechecking-mode "basic")
+  (python-indent-guess-indent-offset nil)
   :preface
   (defun lc/init-pyright ()
     (lsp-register-client
@@ -3048,7 +3054,7 @@ layout python /usr/local/homebrew/bin/python3.9
 #+begin_src emacs-lisp
 (use-package flymake-ruff
   :hook
-  (python-base-mode . flymake-ruff-load))
+  (python-ts-mode . flymake-ruff-load))
 #+end_src
 
 *** jupyter
@@ -3083,7 +3089,7 @@ Compile by hand:
 (use-package jupyter
   :vc (:fetcher "github" :repo "nnicandro/emacs-jupyter")
   :bind
-  (:map python-base-mode-map
+  (:map python-ts-mode-map
         ("<localleader>ee" . 'jupyter-eval-line-or-region)
         ;; ("<visual-state><localleader>e" . 'jupyter-eval-line-or-region)
         ("<localleader>ed" . 'jupyter-eval-defun)
@@ -3424,3 +3430,4 @@ Notes:
 * To be fixed
 ** TODO add to README how to install crafted emacs
 ** TODO review TAB and completion buffer
+** TODO fix dired bindings

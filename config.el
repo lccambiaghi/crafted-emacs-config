@@ -199,6 +199,11 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
 
 (use-package emacs
   :init
+  (setq-default fill-column 82)
+  )
+
+(use-package emacs
+  :init
   (add-hook 'window-setup-hook 'toggle-frame-maximized t))
 
 (use-package emacs
@@ -252,7 +257,6 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
   )
 
 (use-package emacs
-  :hook (after-init . lc/set-font-size)
   :init
   (defcustom lc/default-font-family "fira code" 
     "Default font family"
@@ -300,6 +304,7 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
     (set-face-attribute 'mode-line nil :family lc/default-font-family :height (lc/get-font-size))
     (set-face-attribute 'mode-line-inactive nil :family lc/default-font-family :height (lc/get-font-size))
     )
+  (add-hook 'after-init-hook #'lc/set-font-size)
   )
 
 (use-package all-the-icons
@@ -326,14 +331,6 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
   ("<leader>TAB H" . 'lc/go-to-dashboard)
   :preface
   (defun linum-mode (_) )
-  (defun lc/dashboard-insert-projects (list-size)
-    (dashboard-insert-section
-     "Projects:"
-     (mapcar (lambda (l) (car l)) (dashboard-subseq project--list 0 list-size))
-     list-size
-     "p"
-     `(lambda (&rest ignore) (tabspaces-open-or-create-project-and-workspace ,el))
-     (abbreviate-file-name el)))
   (defun lc/go-to-dashboard ()
     (interactive)
     (kill-matching-buffers dashboard-buffer-name nil 'no-ask)
@@ -352,8 +349,8 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
           ))
   (setq dashboard-set-footer nil)
   (setq dashboard-filter-agenda-entry 'dashboard-no-filter-agenda)
+  (setq dashboard-projects-backend 'project-el)
   ;; (setq dashboard-match-agenda-entry nil)
-  (advice-add 'dashboard-insert-projects :override #'lc/dashboard-insert-projects)
   (dashboard-setup-startup-hook))
 
 (use-package doom-modeline
@@ -523,7 +520,7 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
 
 (use-package evil-collection
   :hook
-  (helpful-mode . (lambda () (evil-collection-init 'help)))
+  (helpful-mode . (lambda () (evil-collection-init '(dired help))))
   )
 
 (use-package evil
@@ -791,8 +788,8 @@ be passed to EVAL-FUNC as its rest arguments"
   (setq lc/gpt-api-key-getter (lambda () (auth-source-pick-first-password :host "chat.openai.com")))
   ;; (setq lc/gpt-model 'gpt-3.5-turbo-0301)
   ;; (setq lc/gpt-model 'gpt-4-0314)
-  ;; (setq lc/gpt-model 'gpt-4-0613)
-  (setq lc/gpt-model 'gpt-3.5-turbo-16k)
+  (setq lc/gpt-model 'gpt-4-0613)
+  ;; (setq lc/gpt-model 'gpt-3.5-turbo-16k)
   (setq lc/chat-model t)
   (setq lc/gpt-max-output-tokens 2000)
   (setq lc/gpt-temperature 0.1)
@@ -1281,6 +1278,7 @@ be passed to EVAL-FUNC as its rest arguments"
   :custom
   (org-modern-block-fringe 10)
   (org-use-sub-superscripts nil)
+  (org-pretty-entities-include-sub-superscripts nil)
   :hook
   (org-mode . org-modern-mode))
 
@@ -1363,19 +1361,22 @@ be passed to EVAL-FUNC as its rest arguments"
     (consult-notes-denote-mode)))
 
 (use-package corfu
+  :hook
+  (prog-mode . corfu-mode)
   :bind
   (:map corfu-map
         ("<insert-state><escape>" . 'corfu-quit))
+  ("<leader>tc" . (lambda () (interactive) (corfu-mode)))
   :custom
   (corfu-min-width 80)
   ;; Always have the same width
   (corfu-max-width corfu-min-width)
-  (corfu-auto nil)
+  ;; (corfu-auto nil)
   (tab-always-indent 'complete)
-  ;; :config
+  :config
   ;; (corfu-popupinfo-mode -1)
-  ;; (global-corfu-mode -1)
-)
+  (global-corfu-mode -1)
+  )
 
 (use-package embark
   :bind
@@ -1493,7 +1494,7 @@ be passed to EVAL-FUNC as its rest arguments"
   ("<leader>!j" . 'flymake-goto-next-error)
   ("<leader>!k" . 'flymake-goto-prev-error)
   :hook
-  (python-base-mode emacs-lisp-mode)
+  (python-ts-mode emacs-lisp-mode)
   :custom
   (flymake-fringe-indicator-position 'right-fringe))
 
@@ -1795,17 +1796,6 @@ be passed to EVAL-FUNC as its rest arguments"
 (use-package nix-mode
 :mode "\\.nix\\'")
 
-(use-package python-mode
-  :ensure nil
-  :preface
-  (defun lc/init-py-ts-mode ()
-    (when (treesit-ready-p 'python)
-      (unless (member '(python-mode . python-ts-mode) major-mode-remap-alist)
-        (add-to-list 'major-mode-remap-alist '(python-mode . python-ts-mode)))))
-  :init
-  (lc/init-py-ts-mode)
-  (setq python-indent-guess-indent-offset nil))
-
 (use-package csv-mode
   :hook (csv-mode . lc/init-csv-mode)
   :bind
@@ -1864,7 +1854,7 @@ be passed to EVAL-FUNC as its rest arguments"
 
 (use-package lsp-pyright
   :hook
-  (python-base-mode . (lambda ()
+  (python-ts-mode . (lambda ()
                         (require 'lsp-pyright)
                         (lc/init-pyright)
                         (lsp-deferred)
@@ -1872,6 +1862,7 @@ be passed to EVAL-FUNC as its rest arguments"
                         ))
   :custom
   (lsp-pyright-typechecking-mode "basic")
+  (python-indent-guess-indent-offset nil)
   :preface
   (defun lc/init-pyright ()
     (lsp-register-client
@@ -2026,7 +2017,7 @@ be passed to EVAL-FUNC as its rest arguments"
 
 (use-package flymake-ruff
   :hook
-  (python-base-mode . flymake-ruff-load))
+  (python-ts-mode . flymake-ruff-load))
 
 (use-package emacs
   :init
@@ -2037,7 +2028,7 @@ be passed to EVAL-FUNC as its rest arguments"
 (use-package jupyter
   :vc (:fetcher "github" :repo "nnicandro/emacs-jupyter")
   :bind
-  (:map python-base-mode-map
+  (:map python-ts-mode-map
         ("<localleader>ee" . 'jupyter-eval-line-or-region)
         ;; ("<visual-state><localleader>e" . 'jupyter-eval-line-or-region)
         ("<localleader>ed" . 'jupyter-eval-defun)
