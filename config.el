@@ -255,6 +255,11 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
 
 (use-package emacs
   :init
+  (electric-pair-mode 1)
+  )
+
+(use-package emacs
+  :init
   (add-hook 'window-setup-hook 'toggle-frame-maximized t))
 
 (use-package emacs
@@ -371,8 +376,7 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
 )
 
 (use-package nerd-icons-dired
-  :hook
-   (dired-mode . nerd-icons-dired-mode))
+  :hook (dired-mode . nerd-icons-dired-mode))
 
 (use-package nerd-icons-completion
   :hook (marginalia-mode . nerd-icons-completion-marginalia-setup))
@@ -387,8 +391,48 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
         welcome-dashboard-image-file "~/.config/emacs/true.png"
         welcome-dashboard-image-width 200
         welcome-dashboard-image-height 169)
-  (welcome-dashboard-create-welcome-hook)
-  )
+  ;; (welcome-dashboard-create-welcome-hook)
+  (defun lc/welcome-dashboard--refresh-screen ()
+    "Show the welcome-dashboard screen."
+    (setq welcome-dashboard-recentfiles (seq-take recentf-list 9))
+    (with-current-buffer (get-buffer-create welcome-dashboard-buffer)
+      (let* ((buffer-read-only)
+             (image (create-image welcome-dashboard-image-file 'png nil :width welcome-dashboard-image-width :height welcome-dashboard-image-height))
+             (size (image-size image))
+             (width (car size))
+             (left-margin (max welcome-dashboard-min-left-padding (floor (/ (- (window-width) width) 2))))
+             (packages (format "%d" (welcome-dashboard--package-length))))
+	(erase-buffer)
+	(goto-char (point-min))
+	(let ((inhibit-read-only t))
+          ;; (insert "\n")
+          ;; (welcome-dashboard--insert-centered (propertize welcome-dashboard-title 'face 'welcome-dashboard-title-face))
+          ;; (welcome-dashboard--insert-recent-files)
+          (setq cursor-type nil)
+
+          ;; (insert "\n")
+          ;; (welcome-dashboard--insert-todos)
+          ;; (welcome-dashboard--insert-text (make-string 60 ?-))
+
+          (insert "\n\n")
+          (insert (make-string left-margin ?\ ))
+          (insert-image image)
+          (insert "\n\n")
+          (welcome-dashboard--insert-centered (propertize (format-time-string "%A, %B %d %R") 'face 'welcome-dashboard-time-face))
+	  
+          (insert "\n")
+          (welcome-dashboard--insert-startup-time)
+          (welcome-dashboard--insert-package-info packages)
+          (welcome-dashboard--insert-weather-info)
+
+          (switch-to-buffer welcome-dashboard-buffer)
+          (read-only-mode +1)
+          ;; (welcome-dashboard-mode)
+          (goto-char (point-min))
+          (forward-line 3)))))
+  (add-hook 'emacs-startup-hook (lambda () 
+                                  (require 'welcome-dashboard)
+                                  (lc/welcome-dashboard--refresh-screen))))
 
 (use-package doom-modeline
   :if (not lc/use-lambda-line)
@@ -418,19 +462,6 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
                                         ("DONE" . "#afd8af")
                                         ("FIXME" . "#cc9393")))
     (hl-todo-mode)))
-
-(use-package kind-icon
-  :after corfu
-  :custom
-  (kind-icon-default-face 'corfu-default) ; to compute blended backgrounds correctly
-  (kind-icon-blend-background nil)  ; Use midpoint color between foreground and background colors ("blended")?
-  (kind-icon-blend-frac 0.08)
-  :config
-  (add-to-list 'corfu-margin-formatters #'kind-icon-margin-formatter)
-  ;; refresh kind icon cache to match theme
-  (add-hook 'modus-themes-after-load-theme-hook
-            #'(lambda () (interactive) (kind-icon-reset-cache)))
-)
 
 (use-package centered-cursor-mode
   :bind
@@ -683,7 +714,9 @@ be passed to EVAL-FUNC as its rest arguments"
     (dotimes (_ count) (+org--insert-item 'above))))
 
 (use-package evil-commentary
-  :hook (evil-mode . (lambda () (evil-commentary-mode))))
+  :init
+  (with-eval-after-load 'evil
+    (evil-commentary-mode)))
 
 (use-package evil-surround
   :init
@@ -691,17 +724,18 @@ be passed to EVAL-FUNC as its rest arguments"
     (global-evil-surround-mode)))
 
 (use-package evil-goggles
-  :after evil
   :custom
   (evil-goggles-duration 0.1)
-  :config
-  (push '(evil-operator-eval
-          :face evil-goggles-yank-face
-          :switch evil-goggles-enable-yank
-          :advice evil-goggles--generic-async-advice)
-        evil-goggles--commands)
-  (evil-goggles-mode)
-  (evil-goggles-use-diff-faces))
+  :init
+  (with-eval-after-load 'evil
+    ;; (push '(evil-operator-eval
+    ;;         :face evil-goggles-yank-face
+    ;;         :switch evil-goggles-enable-yank
+    ;;         :advice evil-goggles--generic-async-advice)
+    ;;       evil-goggles--commands)
+    (evil-goggles-mode)
+    (evil-goggles-use-diff-faces))
+  )
 
 (use-package evil-cleverparens
   :after (evil)
@@ -902,114 +936,6 @@ be passed to EVAL-FUNC as its rest arguments"
 
   :config
   (require 'request))
-
-(use-package emacs
-  :bind
-  ("<leader>sa" . 'search-with-alpaca)
-  :init
-  (defcustom alpaca-binary "~/git/alpaca.cpp/chat"
-    "Path to the alpaca.cpp compiled binary")
-
-  (defcustom alpaca-model-path "~/git/alpaca.cpp/ggml-alpaca-7b-q4.bin"
-    "path to alpaca-models")
-
-  (defcustom alpaca-args '("-t" "8")
-    "Arguments to pass to alpaca")
-
-  (defvar swl-current-process-buffer nil "Mini-buffer currently being used to display the process.")
-
-  (defvar swl-query-hist nil)
-
-  (defvar-local swl-process-state nil "State of the swl buffer.")
-  (defvar-local swl-process-start-point nil "Point at which query starts.")
-  (defvar-local swl-process-cmd nil "Original query command running in the buffer.")
-
-  (defvar swl-result-mode-map
-    (let ((map (make-sparse-keymap)))
-      (suppress-keymap map)
-      (define-key map "q" 'swl-quit)
-      (define-key map "r" 'swl-restart-query)
-      map))
-
-  (defun swl-make-buffer-command (command &optional full)
-    "Return a string that invokes alpaca.cpp with a query COMMAND and model MODEL."
-    (format "%s -p \"%s\" --model %s %s"
-              alpaca-binary
-              command
-              alpaca-model-path
-              (string-join alpaca-args " ")))
-
-  (defun swl-clear-running-process ()
-    (when (and swl-current-process-buffer (buffer-live-p swl-current-process-buffer))
-      (let  ((process (get-buffer-process swl-current-process-buffer)))
-        (if process (kill-process process)))
-      (with-current-buffer swl-current-process-buffer
-        (erase-buffer))))
-
-  (defun swl-quit ()
-    (interactive)
-    (swl-clear-running-process)
-    (when swl-current-process-buffer
-      (with-current-buffer swl-current-process-buffer
-        (setq swl-process-cmd nil)
-        (setq swl-process-state nil)))
-    (quit-window))
-
-  (defun swl-run-query (cmd)
-    (if swl-current-process-buffer
-        (swl-clear-running-process))
-    (with-current-buffer swl-current-process-buffer
-      (setq swl-process-state nil)
-      (setq swl-process-cmd cmd)
-      (goto-char 0)
-      (insert "CMD: ") (insert cmd) (insert "\n")
-      (insert "Press r to re-run query and q to quit.\n")
-      (goto-char (point-max))
-      (setq swl-process-start-point (make-marker))
-      (move-marker swl-process-start-point (point))
-      (use-local-map swl-result-mode-map))
-    (let (proc)
-      (setq proc (start-process-shell-command
-                  "swl-search-process"
-                  swl-current-process-buffer
-                  cmd))
-      (when (and proc (processp proc))
-        (set-process-filter proc #'swl-filter))))
-
-  (defun swl-restart-query ()
-    (interactive)
-    (swl-clear-running-process)
-    (when (and swl-current-process-buffer (buffer-live-p swl-current-process-buffer))
-      (with-current-buffer swl-current-process-buffer
-        (when swl-process-cmd
-          (swl-run-query swl-process-cmd)))))
-
-  (defun swl-filter (process event)
-    (when (and swl-current-process-buffer (buffer-live-p swl-current-process-buffer) (process-live-p process))
-      (with-current-buffer swl-current-process-buffer
-        (save-excursion
-          (goto-char (process-mark process))
-          (insert event)
-          (set-marker (process-mark process) (point))
-          (unless swl-process-state
-            (goto-char (point-min))
-            (setq swl-process-state
-                  (search-forward-regexp "sampling parameters:.*\n" nil t))
-            (if swl-process-state
-                (delete-region (marker-position swl-process-start-point) swl-process-state)))))))
-
-  (defun search-with-alpaca (query &optional model-size model-type)
-    (interactive
-     (list
-      (completing-read "" swl-query-hist nil nil nil 'swl-query-hist)))
-    (unless (and swl-current-process-buffer (buffer-live-p swl-current-process-buffer))
-      (setq swl-current-process-buffer (get-buffer-create "*swl-process-buffer*")))
-    (let (cmd)
-      (setq cmd (swl-make-buffer-command query))
-      (swl-run-query cmd)
-      (display-buffer-at-bottom swl-current-process-buffer '(previous-window))
-      (pop-to-buffer swl-current-process-buffer)))
-  )
 
 (use-package chatgpt-shell
   ;; :vc (:fetcher "github" :repo "xenodium/chatgpt-shell")
@@ -1330,11 +1256,9 @@ be passed to EVAL-FUNC as its rest arguments"
   (org-mode . org-modern-mode))
 
 (use-package org-fragtog
-  :hook
-  (org-mode))
+  :hook org-mode)
 
 (use-package org-remoteimg
-  :after (org)
   :hook
   (org-mode . (lambda () (require 'org-remoteimg)))
   :vc (:fetcher "github" :repo "gaoDean/org-remoteimg")
@@ -1364,17 +1288,11 @@ be passed to EVAL-FUNC as its rest arguments"
   )
 
 (use-package cape
-  :after corfu
-  :config
+  :init
   (add-to-list 'completion-at-point-functions #'cape-file)
   (add-to-list 'completion-at-point-functions #'cape-dabbrev)
   (advice-add 'pcomplete-completions-at-point :around #'cape-wrap-silent)
   (advice-add 'pcomplete-completions-at-point :around #'cape-wrap-purify)
-  (add-hook 'eshell-mode-hook
-            (lambda () (setq-local corfu-quit-at-boundary t
-                                   corfu-quit-no-match t
-                                   corfu-auto nil)
-              (corfu-mode)))
   )
 
 (use-package consult
@@ -1424,6 +1342,11 @@ be passed to EVAL-FUNC as its rest arguments"
 (use-package corfu
   :hook
   (prog-mode . corfu-mode)
+  (eshell-mode . (lambda ()
+                   (setq-local corfu-quit-at-boundary t
+                               corfu-quit-no-match t
+                               corfu-auto nil)
+		   (corfu-mode)))
   :bind
   (:map corfu-map
         ("<insert-state><escape>" . 'corfu-quit)
@@ -1439,9 +1362,20 @@ be passed to EVAL-FUNC as its rest arguments"
   ;; (corfu-auto nil)
   (tab-always-indent 'complete)
   :config
-  ;; (corfu-popupinfo-mode -1)
-  (global-corfu-mode -1)
+  (add-hook 'eshell-mode-hook
+            )
   )
+
+(use-package kind-icon
+  :custom
+  (kind-icon-default-face 'corfu-default) ; to compute blended backgrounds correctly
+  (kind-icon-blend-background nil)  ; Use midpoint color between foreground and background colors ("blended")?
+  (kind-icon-blend-frac 0.08)
+  :init
+  (with-eval-after-load 'corfu
+    (require 'kind-icon)
+    (add-to-list 'corfu-margin-formatters #'kind-icon-margin-formatter)
+    (add-hook 'modus-themes-after-load-theme-hook #'(lambda () (interactive) (kind-icon-reset-cache)))))
 
 (use-package embark
   :bind
@@ -1458,7 +1392,6 @@ be passed to EVAL-FUNC as its rest arguments"
   )
 
 (use-package orderless
-  :after vertico
   :init
   (setq completion-styles '(orderless basic))
   (setq completion-category-overrides '((file (styles . (partial-completion)))))
@@ -1477,12 +1410,10 @@ be passed to EVAL-FUNC as its rest arguments"
         ;; ("C-j" . 'vertico-previous)
         ("C-k" . 'vertico-previous)
         )
-  :init
-  (vertico-mode)
-  ;; :config
-  ;; (vertico-reverse-mode)
   :custom
   (vertico-resize t)
+  :init
+  (vertico-mode)
   )
 
 (use-package denote
@@ -1588,6 +1519,10 @@ be passed to EVAL-FUNC as its rest arguments"
      (max (point) (mark))))
   )
 
+(use-package jinx
+  :hook (org-mode . jinx-mode)
+  :bind ([remap ispell-word] . jinx-correct))
+
 (use-package flymake
   :ensure nil
   :bind
@@ -1599,7 +1534,6 @@ be passed to EVAL-FUNC as its rest arguments"
   (flymake-fringe-indicator-position 'right-fringe))
 
 (use-package hydra
-  :after evil
   :bind
   ("<leader>ww" . 'evil-windows-hydra/body)
   :config
@@ -1720,19 +1654,13 @@ be passed to EVAL-FUNC as its rest arguments"
       "Set workspace buffer list for consult-buffer.")
     (add-to-list 'consult-buffer-sources 'consult--source-workspace)))
 
-(use-package emacs
-  :ensure nil
-  :custom
-  (treesit-font-lock-level 3)
-  :init
-  (require 'treesit)
-  )
-
 (use-package treesit-auto
   :commands (global-treesit-auto-mode)
   :when (and (member "TREE_SITTER" (split-string system-configuration-features))
              (executable-find "tree-sitter"))
   :init
+  (setq treesit-font-lock-level 3)
+  (require 'treesit)
   (global-treesit-auto-mode))
 
 (use-package treemacs
@@ -1756,7 +1684,7 @@ be passed to EVAL-FUNC as its rest arguments"
     (treemacs-git-commit-diff-mode t)))
 
 (use-package vterm
-  :bind
+  ;; :bind
   ;; (:map vterm-mode-map
   ;;       ("<insert-state> M-<left>" . (lambda () (interactive) (vterm-send-key (kbd "M-<left>"))))
   ;;       ("<insert-state> M-<right>" . (lambda () (interactive) (vterm-send-key (kbd "M-<right>"))))
@@ -1884,7 +1812,7 @@ be passed to EVAL-FUNC as its rest arguments"
 
 ;; keep the file indented
 (use-package aggressive-indent
-  :hook (clojure-mode emacs-lisp-mode))
+  :hook (emacs-lisp-mode))
 
 (use-package nix-mode
 :mode "\\.nix\\'")
@@ -1978,7 +1906,6 @@ be passed to EVAL-FUNC as its rest arguments"
                         (lc/init-pyright)
                         (lsp-deferred)
                         (lsp-diagnostics-mode -1)
-                        (aggressive-indent-mode -1)
                         ))
   :custom
   (lsp-pyright-typechecking-mode "basic")
@@ -2138,12 +2065,6 @@ be passed to EVAL-FUNC as its rest arguments"
 (use-package flymake-ruff
   :hook
   (python-ts-mode . flymake-ruff-load))
-
-(use-package emacs
-  :init
-  ;; (add-to-list 'native-comp-bootstrap-deny-list ".*jupyter.*")
-  ;; (add-to-list 'native-comp-jit-compilation-deny-list ".*jupyter.*")
-  )
 
 (use-package jupyter
   :vc (:fetcher "github" :repo "nnicandro/emacs-jupyter")

@@ -430,6 +430,15 @@ Note:
   (winner-mode 1))
 #+end_src
 
+** auto pair parentheses
+
+#+begin_src emacs-lisp
+(use-package emacs
+  :init
+  (electric-pair-mode 1)
+  )
+#+end_src
+
 * User interface
 :PROPERTIES:
 :ID:       9BC5F95A-DE45-4F06-BB2B-A3EA810FA11F
@@ -593,8 +602,7 @@ Note:
 
 #+begin_src emacs-lisp
 (use-package nerd-icons-dired
-  :hook
-   (dired-mode . nerd-icons-dired-mode))
+  :hook (dired-mode . nerd-icons-dired-mode))
 #+end_src
 
 ** nerd-icons-completion
@@ -648,8 +656,48 @@ Note:
         welcome-dashboard-image-file "~/.config/emacs/true.png"
         welcome-dashboard-image-width 200
         welcome-dashboard-image-height 169)
-  (welcome-dashboard-create-welcome-hook)
-  )
+  ;; (welcome-dashboard-create-welcome-hook)
+  (defun lc/welcome-dashboard--refresh-screen ()
+    "Show the welcome-dashboard screen."
+    (setq welcome-dashboard-recentfiles (seq-take recentf-list 9))
+    (with-current-buffer (get-buffer-create welcome-dashboard-buffer)
+      (let* ((buffer-read-only)
+             (image (create-image welcome-dashboard-image-file 'png nil :width welcome-dashboard-image-width :height welcome-dashboard-image-height))
+             (size (image-size image))
+             (width (car size))
+             (left-margin (max welcome-dashboard-min-left-padding (floor (/ (- (window-width) width) 2))))
+             (packages (format "%d" (welcome-dashboard--package-length))))
+	(erase-buffer)
+	(goto-char (point-min))
+	(let ((inhibit-read-only t))
+          ;; (insert "\n")
+          ;; (welcome-dashboard--insert-centered (propertize welcome-dashboard-title 'face 'welcome-dashboard-title-face))
+          ;; (welcome-dashboard--insert-recent-files)
+          (setq cursor-type nil)
+
+          ;; (insert "\n")
+          ;; (welcome-dashboard--insert-todos)
+          ;; (welcome-dashboard--insert-text (make-string 60 ?-))
+
+          (insert "\n\n")
+          (insert (make-string left-margin ?\ ))
+          (insert-image image)
+          (insert "\n\n")
+          (welcome-dashboard--insert-centered (propertize (format-time-string "%A, %B %d %R") 'face 'welcome-dashboard-time-face))
+	  
+          (insert "\n")
+          (welcome-dashboard--insert-startup-time)
+          (welcome-dashboard--insert-package-info packages)
+          (welcome-dashboard--insert-weather-info)
+
+          (switch-to-buffer welcome-dashboard-buffer)
+          (read-only-mode +1)
+          ;; (welcome-dashboard-mode)
+          (goto-char (point-min))
+          (forward-line 3)))))
+  (add-hook 'emacs-startup-hook (lambda () 
+                                  (require 'welcome-dashboard)
+                                  (lc/welcome-dashboard--refresh-screen))))
 #+end_src
 
 ** Doom modeline
@@ -723,23 +771,6 @@ Note:
                                         ("FIXME" . "#cc9393")))
     (hl-todo-mode)))
   #+end_src
-
-** kind icon
-
-#+begin_src emacs-lisp
-(use-package kind-icon
-  :after corfu
-  :custom
-  (kind-icon-default-face 'corfu-default) ; to compute blended backgrounds correctly
-  (kind-icon-blend-background nil)  ; Use midpoint color between foreground and background colors ("blended")?
-  (kind-icon-blend-frac 0.08)
-  :config
-  (add-to-list 'corfu-margin-formatters #'kind-icon-margin-formatter)
-  ;; refresh kind icon cache to match theme
-  (add-hook 'modus-themes-after-load-theme-hook
-            #'(lambda () (interactive) (kind-icon-reset-cache)))
-)
-#+end_src
 
 ** COMMENT Highlight indent guides
 
@@ -1164,7 +1195,9 @@ Text objects:
 
 #+begin_src emacs-lisp
 (use-package evil-commentary
-  :hook (evil-mode . (lambda () (evil-commentary-mode))))
+  :init
+  (with-eval-after-load 'evil
+    (evil-commentary-mode)))
 #+end_src
 
 ** evil surround
@@ -1180,17 +1213,18 @@ Text objects:
 
 #+begin_src emacs-lisp
 (use-package evil-goggles
-  :after evil
   :custom
   (evil-goggles-duration 0.1)
-  :config
-  (push '(evil-operator-eval
-          :face evil-goggles-yank-face
-          :switch evil-goggles-enable-yank
-          :advice evil-goggles--generic-async-advice)
-        evil-goggles--commands)
-  (evil-goggles-mode)
-  (evil-goggles-use-diff-faces))
+  :init
+  (with-eval-after-load 'evil
+    ;; (push '(evil-operator-eval
+    ;;         :face evil-goggles-yank-face
+    ;;         :switch evil-goggles-enable-yank
+    ;;         :advice evil-goggles--generic-async-advice)
+    ;;       evil-goggles--commands)
+    (evil-goggles-mode)
+    (evil-goggles-use-diff-faces))
+  )
 #+end_src
 
 ** evil cleverparens, outer form text object
@@ -1482,7 +1516,7 @@ def convert_miles_to_km():
   (require 'request))
 #+end_src
 
-** Search with alpaca
+** COMMENT Search with alpaca
 
 #+begin_src emacs-lisp
 (use-package emacs
@@ -1996,8 +2030,7 @@ NOTE:
 
 #+begin_src emacs-lisp
 (use-package org-fragtog
-  :hook
-  (org-mode))
+  :hook org-mode)
 #+end_src
 
 ** COMMENT org-re-reveal
@@ -2016,7 +2049,6 @@ NOTE:
 
 #+begin_src emacs-lisp
 (use-package org-remoteimg
-  :after (org)
   :hook
   (org-mode . (lambda () (require 'org-remoteimg)))
   :vc (:fetcher "github" :repo "gaoDean/org-remoteimg")
@@ -2055,19 +2087,13 @@ NOTE:
 
 #+begin_src emacs-lisp
 (use-package cape
-  :after corfu
-  :config
+  :init
   (add-to-list 'completion-at-point-functions #'cape-file)
   (add-to-list 'completion-at-point-functions #'cape-dabbrev)
   (advice-add 'pcomplete-completions-at-point :around #'cape-wrap-silent)
   (advice-add 'pcomplete-completions-at-point :around #'cape-wrap-purify)
-  (add-hook 'eshell-mode-hook
-            (lambda () (setq-local corfu-quit-at-boundary t
-                                   corfu-quit-no-match t
-                                   corfu-auto nil)
-              (corfu-mode)))
   )
-#+end_src
+    #+end_src
 
 ** consult
 
@@ -2121,12 +2147,17 @@ NOTE:
     (consult-notes-denote-mode)))
 #+end_src
 
-** corfu
+** corfu + kind icon
 
 #+begin_src emacs-lisp
 (use-package corfu
   :hook
   (prog-mode . corfu-mode)
+  (eshell-mode . (lambda ()
+                   (setq-local corfu-quit-at-boundary t
+                               corfu-quit-no-match t
+                               corfu-auto nil)
+		   (corfu-mode)))
   :bind
   (:map corfu-map
         ("<insert-state><escape>" . 'corfu-quit)
@@ -2142,9 +2173,20 @@ NOTE:
   ;; (corfu-auto nil)
   (tab-always-indent 'complete)
   :config
-  ;; (corfu-popupinfo-mode -1)
-  (global-corfu-mode -1)
+  (add-hook 'eshell-mode-hook
+            )
   )
+
+(use-package kind-icon
+  :custom
+  (kind-icon-default-face 'corfu-default) ; to compute blended backgrounds correctly
+  (kind-icon-blend-background nil)  ; Use midpoint color between foreground and background colors ("blended")?
+  (kind-icon-blend-frac 0.08)
+  :init
+  (with-eval-after-load 'corfu
+    (require 'kind-icon)
+    (add-to-list 'corfu-margin-formatters #'kind-icon-margin-formatter)
+    (add-hook 'modus-themes-after-load-theme-hook #'(lambda () (interactive) (kind-icon-reset-cache)))))
 #+end_src
 
 ** embark
@@ -2173,14 +2215,13 @@ NOTE:
 
 #+begin_src emacs-lisp
 (use-package orderless
-  :after vertico
   :init
   (setq completion-styles '(orderless basic))
   (setq completion-category-overrides '((file (styles . (partial-completion)))))
   )
 #+end_src
 
-** vertico
+** vertico + savehist
 
 #+begin_src emacs-lisp
 (use-package savehist
@@ -2196,12 +2237,10 @@ NOTE:
         ;; ("C-j" . 'vertico-previous)
         ("C-k" . 'vertico-previous)
         )
-  :init
-  (vertico-mode)
-  ;; :config
-  ;; (vertico-reverse-mode)
   :custom
   (vertico-resize t)
+  :init
+  (vertico-mode)
   )
 #+end_src
 
@@ -2310,7 +2349,7 @@ NOTE:
 
 #+end_src
 
-** eshell
+** COMMENT eshell
 *** COMMENT eat-eshell
 
 #+begin_src emacs-lisp
@@ -2603,7 +2642,7 @@ any directory proferred by `consult-dir'."
   )
 #+end_src
 
-** COMMENT jinx
+** jinx
 
 #+begin_src emacs-lisp
 (use-package jinx
@@ -2629,7 +2668,6 @@ any directory proferred by `consult-dir'."
 
 #+begin_src emacs-lisp
 (use-package hydra
-  :after evil
   :bind
   ("<leader>ww" . 'evil-windows-hydra/body)
   :config
@@ -2775,7 +2813,7 @@ any directory proferred by `consult-dir'."
     (add-to-list 'consult-buffer-sources 'consult--source-workspace)))
 #+end_src
 
-** tree-sitter
+** tree-sitter + treesit-auto
 
 To build grammar:
 - =git clone https://github.com/tree-sitter/tree-sitter-javascript=
@@ -2783,23 +2821,13 @@ To build grammar:
 - =cp dist/libtree-sitter-python.dylib ~/git/crafted-emacs/tree-sitter/=
 
 #+begin_src emacs-lisp
-(use-package emacs
-  :ensure nil
-  :custom
-  (treesit-font-lock-level 3)
-  :init
-  (require 'treesit)
-  )
-#+end_src
-
-** treesit-auto
-
-#+begin_src emacs-lisp
 (use-package treesit-auto
   :commands (global-treesit-auto-mode)
   :when (and (member "TREE_SITTER" (split-string system-configuration-features))
              (executable-find "tree-sitter"))
   :init
+  (setq treesit-font-lock-level 3)
+  (require 'treesit)
   (global-treesit-auto-mode))
 #+end_src
 
@@ -2831,7 +2859,7 @@ To build grammar:
 
 #+begin_src emacs-lisp
 (use-package vterm
-  :bind
+  ;; :bind
   ;; (:map vterm-mode-map
   ;;       ("<insert-state> M-<left>" . (lambda () (interactive) (vterm-send-key (kbd "M-<left>"))))
   ;;       ("<insert-state> M-<right>" . (lambda () (interactive) (vterm-send-key (kbd "M-<right>"))))
@@ -3027,7 +3055,7 @@ If invoked with OUTPUT-TO-CURRENT-BUFFER, output the result to current buffer."
 #+begin_src emacs-lisp
 ;; keep the file indented
 (use-package aggressive-indent
-  :hook (clojure-mode emacs-lisp-mode))
+  :hook (emacs-lisp-mode))
 #+end_src
 
 ** Nix
@@ -3167,7 +3195,6 @@ layout python /usr/local/homebrew/bin/python3.9
                         (lc/init-pyright)
                         (lsp-deferred)
                         (lsp-diagnostics-mode -1)
-                        (aggressive-indent-mode -1)
                         ))
   :custom
   (lsp-pyright-typechecking-mode "basic")
@@ -3363,12 +3390,6 @@ Compile by hand:
 - In the REPL you can use =M-p= / =M-n= to navigate previous prompts
 
 #+begin_src emacs-lisp
-(use-package emacs
-  :init
-  ;; (add-to-list 'native-comp-bootstrap-deny-list ".*jupyter.*")
-  ;; (add-to-list 'native-comp-jit-compilation-deny-list ".*jupyter.*")
-  )
-
 (use-package jupyter
   :vc (:fetcher "github" :repo "nnicandro/emacs-jupyter")
   :bind
@@ -3477,11 +3498,13 @@ Compile by hand:
 NOTE:
 - To save a figure add =:file img/hello.png= to header args
 - Set figure params
+
 #+begin_src python
 import matplotlib as mpl
 mpl.rcParams['figure.dpi'] = 200
 mpl.rcParams['figure.facecolor'] = '1'
 #+end_src
+
 - To avoid df in HTMl, use =:display plain= in header args
 - To open HTML block at point use =lc/org-view-html=
 
@@ -3727,7 +3750,6 @@ Notes:
 #+end_src 
 
 * To be fixed
-** TODO add to README how to install crafted emacs
+** TODO update README
 ** TODO review TAB and completion buffer
-** TODO evil: don't overwrite register when pasting selection
-** TODO evil: don't lose selection when evaluating
+** TODO fix welcome-dashboard
