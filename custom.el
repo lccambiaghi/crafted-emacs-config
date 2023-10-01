@@ -59,18 +59,19 @@
      ("stable" . 70)
      ("melpa" . 0)))
  '(package-selected-packages
-   '(pandoc-mode markdown-mode ibuffer-project aggressive-indent editorconfig combobulate treesit-auto org-appear denote evil-collection evil tabspaces helpful elisp-demos all-the-icons vertico orderless marginalia embark-consult embark corfu-terminal corfu consult cape))
+   '(welcome-dashboard nerd-icons-completion pretty-hydra yaml-mode flymake-eslint typescript-mode rjsx-mode stan-mode jupyter flymake-ruff dap-mode lsp-pyright envrc csv-mode python-black nix-mode cider clojure-mode lsp-ui lsp-mode xwwp-full vterm-toggle vterm treemacs-tab-bar treemacs-evil treemacs tabspaces transpose-frame tempel rainbow-delimiters persistent-scratch jinx eros dired-subtree dired-hide-dotfiles denote-menu consult-notes org-remoteimg org-fragtog org-modern diff-hl git-timemachine magit copilot request evil-snipe evil-iedit-state evil-cleverparens evil-goggles evil-surround evil-commentary evil-org-mode auctex pandoc-mode markdown-mode ibuffer-project editorconfig combobulate treesit-auto org-appear denote evil-collection evil helpful elisp-demos all-the-icons vertico orderless marginalia embark-consult embark corfu-terminal corfu consult cape))
  '(package-vc-selected-packages
-   '((chatgpt-shell :vc-backend Git :url "https://github.com/xenodium/chatgpt-shell")
-     (jupyter :vc-backend Git :url "https://github.com/nnicandro/emacs-jupyter")
+   '((welcome-dashboard :vc-backend Git :url "https://github.com/konrad1977/welcome-dashboard")
      (xwwp-full :vc-backend Git :url "https://github.com/kchanqvq/xwwp")
      (org-remoteimg :vc-backend Git :url "https://github.com/gaoDean/org-remoteimg")
      (copilot :vc-backend Git :url "https://github.com/zerolfx/copilot.el")
-     (evil-iedit-state :vc-backend Git :url "https://github.com/kassick/evil-iedit-state")
      (evil-org-mode :vc-backend Git :url "https://github.com/hlissner/evil-org-mode")
      (sideline-flymake :vc-backend Git :url "https://github.com/emacs-sideline/sideline-flymake")
-     (vc-use-package :vc-backend Git :url "https://github.com/slotThe/vc-use-package")))
- '(reftex-plug-into-AUCTeX t)
+     (vc-use-package :vc-backend Git :url "https://github.com/slotThe/vc-use-package")
+     (jupyter :vc-backend Git :url "https://github.com/nnicandro/emacs-jupyter")
+     (evil-iedit-state :vc-backend Git :url "https://github.com/kassick/evil-iedit-state")
+     (chatgpt-shell :vc-backend Git :url "https://github.com/xenodium/chatgpt-shell")))
+ '(reftex-plug-into-AUCTeX t t)
  '(safe-local-variable-values
    '((eval add-hook 'after-save-hook
            (lambda nil
@@ -81,6 +82,7 @@
  '(scroll-preserve-screen-position t)
  '(switch-to-buffer-in-dedicated-window 'pop)
  '(switch-to-buffer-obey-display-actions t)
+ '(tab-always-indent 'complete nil nil "Customized with use-package corfu")
  '(tabspaces-mode t)
  '(vertico-cycle t)
  '(xref-show-definitions-function 'xref-show-definitions-completing-read))

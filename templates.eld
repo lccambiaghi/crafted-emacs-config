@@ -50,7 +50,8 @@ emacs-lisp-mode
 org-mode
 
 (src "#+begin_src " q n> r> n "#+end_src")
-(q "#+begin_quote " q n> r> n "#+end_quote")
+(q "#+begin_quote" q n> r> n "#+end_quote")
+(ex "#+begin_example" q n> r> n "#+end_example")
 (el "#+begin_src emacs-lisp" n> r> n "#+end_src" :post (org-edit-src-code))
 (jp "#+begin_src jupyter-python" n> r> n "#+end_src")
 (ch "#+begin_src chatgpt-shell" n> r> n "#+end_src")

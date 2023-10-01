@@ -7,7 +7,21 @@
 ;;; Code:
 
 ;; package archives
-(load "~/git/crafted-emacs/modules/crafted-early-init-config.el")
+;; (load "~/git/crafted-emacs/modules/crafted-early-init-config.el")
+(require 'package)
+(add-to-list 'package-archives '("stable" . "https://stable.melpa.org/packages/"))
+(add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/"))
+
+(defun crafted-package-initialize ()
+  "Initialize the package system.
+Run this in the `before-init-hook'"
+  (package-initialize)
+  (require 'seq)
+  (when (seq-empty-p package-archive-contents)
+    (progn
+      (message "crafted-package-config: package archives empty, initalizing")
+      (package-refresh-contents))))
+(add-hook 'before-init-hook #'crafted-package-initialize)
 
 ;;; Garbage collection
 ;; Increase the GC threshold for faster startup

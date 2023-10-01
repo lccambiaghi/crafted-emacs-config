@@ -46,7 +46,7 @@
 
 (use-package emacs
   :init
-  (fset 'yes-or-no-p 'y-or-n-p))
+  (setq use-short-answers t))
 
 (use-package emacs
   :init
@@ -174,6 +174,9 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
   :init
   (require 'recentf)
   (require 'no-littering)
+  (setq make-backup-files nil)
+  (setq auto-save-default nil)
+  (setq create-lockfiles nil)
   (add-to-list 'recentf-exclude no-littering-var-directory)
   (add-to-list 'recentf-exclude no-littering-etc-directory))
 
@@ -201,6 +204,54 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
   :init
   (setq-default fill-column 82)
   )
+
+(use-package emacs
+  :init
+
+  (defmacro lc/run-hook-once (hook func &rest args)
+    "a wrapper to run a func on a hook only once"
+    (let ((func-once (gensym (concat "my/" (symbol-name func)
+                                     "-" "at-" (symbol-name hook) "-" "once"))))
+      `(add-hook ',hook
+                 (defun ,func-once ()
+                   (funcall #',func)
+                   (remove-hook ',hook #',func-once)) ,@args)))
+  )
+
+(use-package emacs
+  :init
+  (defvar lc/packages-to-load-incr ()
+    "packages to be loaded incrementally after startup")
+  (defvar lc/load-incr-timer 2
+    "time to load packages incrementally for the first time")
+  (defvar lc/load-incr-idle-time 0.75
+    "idle time to load packages incrementally")
+
+  (defun lc/load-packages-incrementally (pkgs)
+    "load package from PKGS incrementally"
+    (let ((gc-cons-threshold most-positive-fixnum)
+          (pkg (car pkgs))
+          (rest-pkgs (cdr pkgs)))
+      (when pkgs
+        (if (featurep pkg)
+            (lc/load-packages-incrementally rest-pkgs)
+          (progn
+            (require pkg)
+            (run-with-idle-timer
+             lc/load-incr-idle-time nil
+             #'lc/load-packages-incrementally rest-pkgs))))))
+
+  (defun lc/load-packages-incrementally-setup ()
+    "Set up a idle timer to start idly load packages."
+    (run-with-idle-timer
+     lc/load-incr-timer nil
+     #'lc/load-packages-incrementally lc/packages-to-load-incr))
+
+  )
+
+(use-package emacs
+  :init
+  (winner-mode 1))
 
 (use-package emacs
   :init
@@ -275,7 +326,7 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
     :group 'lc)
   
   (defcustom lc/monitor-font-size
-    120
+    150
     "Font size used for laptop"
     :type 'int
     :group 'lc)
@@ -319,39 +370,25 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
                '("toml" all-the-icons-alltheicon "python" :face all-the-icons-dblue))
 )
 
-(use-package all-the-icons-dired
-  :if (display-graphic-p)
+(use-package nerd-icons-dired
   :hook
-  (dired-mode . (lambda () (interactive)
-                  (unless (file-remote-p default-directory)
-                    (all-the-icons-dired-mode)))))
+   (dired-mode . nerd-icons-dired-mode))
 
-(use-package dashboard
-  :bind
-  ("<leader>TAB H" . 'lc/go-to-dashboard)
-  :preface
-  (defun linum-mode (_) )
-  (defun lc/go-to-dashboard ()
-    (interactive)
-    (kill-matching-buffers dashboard-buffer-name nil 'no-ask)
-    (tabspaces-switch-or-create-workspace "Home")
-    (dashboard-insert-startupify-lists)
-    (switch-to-buffer dashboard-buffer-name))
+(use-package nerd-icons-completion
+  :hook (marginalia-mode . nerd-icons-completion-marginalia-setup))
+
+(use-package welcome-dashboard
+  :vc (:fetcher "github" :repo "konrad1977/welcome-dashboard")
   :init
-  (setq dashboard-set-heading-icons t)
-  (setq dashboard-set-file-icons t)
-  (setq dashboard-items
-        '((agenda . 10)
-          ;; (bookmarks . 5)
-          (projects . 10)
-          ;; (recents  . 5)
-          ;; (registers . 5)
-          ))
-  (setq dashboard-set-footer nil)
-  (setq dashboard-filter-agenda-entry 'dashboard-no-filter-agenda)
-  (setq dashboard-projects-backend 'project-el)
-  ;; (setq dashboard-match-agenda-entry nil)
-  (dashboard-setup-startup-hook))
+  (setq welcome-dashboard-use-nerd-icons t ;; Use nerd icons instead of all-the-icons
+        welcome-dashboard-path-max-length 75
+        welcome-dashboard-use-fahrenheit nil ;; show in celcius or fahrenheit.
+        welcome-dashboard-min-left-padding 10
+        welcome-dashboard-image-file "~/.config/emacs/true.png"
+        welcome-dashboard-image-width 200
+        welcome-dashboard-image-height 169)
+  (welcome-dashboard-create-welcome-hook)
+  )
 
 (use-package doom-modeline
   :if (not lc/use-lambda-line)
@@ -360,41 +397,10 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
   :custom
   (doom-modeline-buffer-encoding nil)
   (doom-modeline-env-enable-python nil)
-  (doom-modeline-height 15)
+  (doom-modeline-height 23)
   (doom-modeline-workspace-name nil)
   ;; (doom-modeline-project-detection 'projectile)
   ;; (doom-modeline-buffer-file-name-style 'relative-to-project)
-  )
-
-(use-package lambda-line
-  :after (all-the-icons)
-  :if lc/use-lambda-line
-  :vc (:fetcher "github" :repo "lambda-emacs/lambda-line")
-  :custom
-  (lambda-line-icon-time t) ;; requires ClockFace font (see below)
-  (lambda-line-clockface-update-fontset "ClockFaceRect") ;; set clock icon
-  (lambda-line-position 'bottom) ;; Set position of status-line
-  (lambda-line-abbrev t) ;; abbreviate major modes
-  (lambda-line-hspace "  ")  ;; add some cushion
-  (lambda-line-prefix t) ;; use a prefix symbol
-  (lambda-line-prefix-padding nil) ;; no extra space for prefix
-  (lambda-line-status-invert nil)  ;; no invert colors
-  (lambda-line-gui-ro-symbol  " ⨂") ;; symbols
-  (lambda-line-gui-mod-symbol " ⬤")
-  (lambda-line-gui-rw-symbol  " ◯")
-  (lambda-line-space-top +.50)  ;; padding on top and bottom of line
-  (lambda-line-space-bottom -.50)
-  (lambda-line-symbol-position 0.1) ;; adjust the vertical placement of symbol
-  :init
-  ;; activate lambda-line
-  (lambda-line-mode)
-  ;; set divider line in footer
-  (when (eq lambda-line-position 'top)
-    (setq-default mode-line-format (list "%_"))
-    (setq mode-line-format (list "%_")))
-  (customize-set-variable 'flymake-mode-line-counter-format '("" flymake-mode-line-error-counter flymake-mode-line-warning-counter flymake-mode-line-note-counter ""))
-  (customize-set-variable 'flymake-mode-line-format '(" " flymake-mode-line-exception flymake-mode-line-counters))
-  (lambda-line-visual-bell-config)
   )
 
 (use-package hl-todo
@@ -488,13 +494,19 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
   (edebug-mode . (lambda () (require 'evil-collection-edebug) (evil-normalize-keymaps)))
   :custom
   (evil-want-C-u-scroll t)
-  (evil-want-C-i-jump t)
   (evil-lookup-func #'helpful-at-point)
-  (evil-want-Y-yank-to-eol t)
   (evil-split-window-below t)
   (evil-vsplit-window-right t)
   (evil-auto-indent nil)
+  (evil-want-Y-yank-to-eol t)
+  (evil-want-C-i-jump t)
+  :init
+  (defun my/save-excursion-before-indenting (origin-fn &rest args)
+    (save-excursion (apply origin-fn args)))
+  (setq evil-want-keybinding nil)
+  (evil-mode)
   :config
+  (advice-add #'evil-indent :around #'my/save-excursion-before-indenting)
   ;; set leader key in normal state
   (evil-set-leader 'normal (kbd "SPC"))
   (evil-set-leader 'insert (kbd "C-SPC"))
@@ -505,6 +517,7 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
   (evil-set-leader 'visual "," t)
   ;; ESC key
   (define-key evil-insert-state-map (kbd "ESC") 'evil-normal-state)
+  (define-key evil-insert-state-map (kbd "C-g") 'evil-normal-state)
   ;; set up motion keys
   (define-key evil-motion-state-map "_" 'evil-end-of-line)
   (define-key evil-motion-state-map "0" 'evil-beginning-of-line)
@@ -519,8 +532,19 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
   )
 
 (use-package evil-collection
-  :hook
-  (helpful-mode . (lambda () (evil-collection-init '(dired help))))
+  :after evil
+  :init
+  (setq evil-collection-mode-list
+        '(arc-mode bm bookmark consult comint compile eldoc daemons
+                   debug diff-hl diff-mode dired dired-sidebar
+                   docker doc-view elisp-refs embark eldoc eshell
+                   eww elfeed flymake grep help helpful ibuffer
+                   imenu macrostep magit-sections magit magic-todos
+                   man markdown-mode mu4e notmuch org org-roam
+                   osx-dictionary pdf python replace rg ripgrep
+                   tab-bar term vertico vterm wdired wgrep which-key
+                   xref xwidget))
+  (evil-collection-init)
   )
 
 (use-package evil
@@ -659,7 +683,7 @@ be passed to EVAL-FUNC as its rest arguments"
     (dotimes (_ count) (+org--insert-item 'above))))
 
 (use-package evil-commentary
-  :hook (evil-mode))
+  :hook (evil-mode . (lambda () (evil-commentary-mode))))
 
 (use-package evil-surround
   :init
@@ -727,7 +751,11 @@ be passed to EVAL-FUNC as its rest arguments"
 (use-package evil-iedit-state
   :vc (:fetcher github :repo "kassick/evil-iedit-state")
   :bind
-  ("<leader>se" . 'iedit-mode))
+  (("<leader>se" . 'iedit-mode))
+  (:map iedit-lib-keymap
+        ("n" . 'iedit-next-occurrence)
+        ("N" . 'iedit-prev-occurrence))
+  )
 
 (use-package evil-snipe
   :hook
@@ -984,7 +1012,8 @@ be passed to EVAL-FUNC as its rest arguments"
   )
 
 (use-package chatgpt-shell
-  :vc (:fetcher "github" :repo "xenodium/chatgpt-shell")
+  ;; :vc (:fetcher "github" :repo "xenodium/chatgpt-shell")
+  :load-path "~/git/chatgpt-shell"
   :bind
   ("s-g" . 'chatgpt-shell)
   ("s-d" . 'dall-e-shell)
@@ -1034,6 +1063,7 @@ be passed to EVAL-FUNC as its rest arguments"
    ("<leader>gl" . 'magit-log)
    (:map magit-status-mode-map
          ("SPC" . evil-send-leader)
+         ("$" . magit-process-buffer)
          ("TAB" . 'magit-section-toggle)
          ("ESC" . 'transient-quit-one))
    (:map magit-stash-mode-map
@@ -1043,6 +1073,7 @@ be passed to EVAL-FUNC as its rest arguments"
          ("TAB" . 'magit-section-toggle)
          ("ESC" . 'transient-quit-one))
    (:map magit-process-mode-map
+         ("SPC" . evil-send-leader)
          ("TAB" . 'magit-section-toggle)
          ("ESC" . 'transient-quit-one))
    (:map magit-diff-mode-map
@@ -1055,11 +1086,13 @@ be passed to EVAL-FUNC as its rest arguments"
   (magit-display-buffer-function #'magit-display-buffer-same-window-except-diff-v1)
   (magit-log-arguments '("--graph" "--decorate" "--color"))
   (git-commit-fill-column 72)
+  (magit-diff-refine-hunk t)
   :config
   (setq magit-buffer-name-format (concat "*" magit-buffer-name-format "*"))
   ;; adding autostash suffix to magit-pull
-  (transient-append-suffix 'magit-pull "-A"
-    '("-A" "Autostash" "--autostash")))
+  (transient-append-suffix 'magit-pull "-r"
+    '("-a" "Autostash" "--autostash"))
+  )
 
 (use-package git-timemachine
   :hook
@@ -1177,13 +1210,19 @@ be passed to EVAL-FUNC as its rest arguments"
             (org-cycle-internal-local)
             t)))))
   :config
-  (with-eval-after-load 'org-appear
-    (setq org-appear-autolinks t))
+  ;; Disable auto-pairing of "<" in org-mode >
+  (with-eval-after-load 'elec-pair
+    (add-hook 'org-mode-hook (lambda ()
+                               (setq-local electric-pair-inhibit-predicate
+                                           `(lambda (c)
+                                              (if (char-equal c ?<   ;; >
+                                                              ) t (,electric-pair-inhibit-predicate c)))))))
   (plist-put org-format-latex-options :background "Transparent")
   (plist-put org-format-latex-options :scale 1.4)
   ;; Only fold the current tree, rather than recursively
   (add-hook 'org-tab-first-hook #'+org-cycle-only-current-subtree-h)
-  )
+  (add-hook 'org-mode-hook #'org-indent-mode)
+)
 
 (use-package org
   :preface
@@ -1229,6 +1268,12 @@ be passed to EVAL-FUNC as its rest arguments"
     (setq org-agenda-files (mapcar (lambda (f) (concat lc/beorg-folder f)) '("inbox.org" "20230623T103529--birthdays__life.org"))))
   )
 
+(use-package org-appear
+  :hook org-mode
+  :init
+  (setq org-appear-autolinks t)
+  )
+
 (use-package org
   :bind
   (:map org-mode-map
@@ -1248,7 +1293,9 @@ be passed to EVAL-FUNC as its rest arguments"
    '((emacs-lisp . t)
      ;; (clojure . t)
      (shell . t)))
-  (add-hook 'org-babel-after-execute-hook 'org-display-inline-images 'append))
+  (add-hook 'org-babel-after-execute-hook 'org-display-inline-images 'append)
+  ;; (add-to-list 'org-src-lang-modes '("python" . python-ts))
+)
 
 ;; (use-package ob-async
 ;;   :hook (org-load . (lambda () (require 'ob-async)))
@@ -1316,6 +1363,20 @@ be passed to EVAL-FUNC as its rest arguments"
             (start-process "org-html-preview" nil "xdg-open" temp-file-path))))))
   )
 
+(use-package cape
+  :after corfu
+  :config
+  (add-to-list 'completion-at-point-functions #'cape-file)
+  (add-to-list 'completion-at-point-functions #'cape-dabbrev)
+  (advice-add 'pcomplete-completions-at-point :around #'cape-wrap-silent)
+  (advice-add 'pcomplete-completions-at-point :around #'cape-wrap-purify)
+  (add-hook 'eshell-mode-hook
+            (lambda () (setq-local corfu-quit-at-boundary t
+                                   corfu-quit-no-match t
+                                   corfu-auto nil)
+              (corfu-mode)))
+  )
+
 (use-package consult
   :bind
   ("<leader>bb" . 'consult-buffer)
@@ -1365,7 +1426,11 @@ be passed to EVAL-FUNC as its rest arguments"
   (prog-mode . corfu-mode)
   :bind
   (:map corfu-map
-        ("<insert-state><escape>" . 'corfu-quit))
+        ("<insert-state><escape>" . 'corfu-quit)
+        ("<insert-state> RET" . 'corfu-complete)
+        ("<insert-state> C-j" . 'corfu-next)
+        ("<insert-state> C-k" . 'corfu-previous)
+        )
   ("<leader>tc" . (lambda () (interactive) (corfu-mode)))
   :custom
   (corfu-min-width 80)
@@ -1384,6 +1449,40 @@ be passed to EVAL-FUNC as its rest arguments"
   ;; (:keymaps 'embark-file-map
   ;;           ;; "o" 'find-file-other-window
   ;;           "x" 'lc/dired-open-externally)
+  )
+
+(use-package marginalia
+  :hook vertico-mode
+  :config
+  (setq marginalia-annotators '(marginalia-annotators-heavy marginalia-annotators-light nil))
+  )
+
+(use-package orderless
+  :after vertico
+  :init
+  (setq completion-styles '(orderless basic))
+  (setq completion-category-overrides '((file (styles . (partial-completion)))))
+  )
+
+(use-package savehist
+  :ensure nil
+  :init
+  (savehist-mode))
+
+(use-package vertico
+  :bind
+  (:map vertico-map
+        ("C-j" . 'vertico-next)
+        ;; ("C-k" . 'vertico-next)
+        ;; ("C-j" . 'vertico-previous)
+        ("C-k" . 'vertico-previous)
+        )
+  :init
+  (vertico-mode)
+  ;; :config
+  ;; (vertico-reverse-mode)
+  :custom
+  (vertico-resize t)
   )
 
 (use-package denote
@@ -1444,6 +1543,11 @@ be passed to EVAL-FUNC as its rest arguments"
       (start-process "open-external" nil "open" fn)))
   :config
   (define-key dired-mode-map (kbd "<normal-state>i") nil)
+  ;; disable SPC-fjj acting weirdly
+  (define-key dired-jump-map (kbd "j") nil)
+  ;; disable dired-next-line
+  (define-key dired-mode-map (kbd "SPC") nil)
+  (define-key dired-mode-map (kbd "<normal-state> SPC") nil)
   (define-key dired-mode-map (kbd "<normal-state>X") nil)
   (with-eval-after-load 'evil-collection
     (evil-collection-define-key 'normal 'dired-mode-map
@@ -1483,10 +1587,6 @@ be passed to EVAL-FUNC as its rest arguments"
         (eval-region start end standard-output)))
      (max (point) (mark))))
   )
-
-(use-package jinx
-  :hook (org-mode . jinx-mode)
-  :bind ([remap ispell-word] . jinx-correct))
 
 (use-package flymake
   :ensure nil
@@ -1536,7 +1636,7 @@ be passed to EVAL-FUNC as its rest arguments"
   :bind
   ("<leader>pf" . 'project-find-file)
   :init
-  (setq project-vc-extra-root-markers '("pyrpoject.toml" ".project"))
+  (setq project-vc-extra-root-markers '("pyproject.toml" ".project"))
   (setq project-vc-ignores '(".idea" ".vscode" ".direnv"))
   )
 
@@ -1628,6 +1728,13 @@ be passed to EVAL-FUNC as its rest arguments"
   (require 'treesit)
   )
 
+(use-package treesit-auto
+  :commands (global-treesit-auto-mode)
+  :when (and (member "TREE_SITTER" (split-string system-configuration-features))
+             (executable-find "tree-sitter"))
+  :init
+  (global-treesit-auto-mode))
+
 (use-package treemacs
   :bind
   ("<leader>tp" . 'treemacs)
@@ -1648,34 +1755,19 @@ be passed to EVAL-FUNC as its rest arguments"
   (when treemacs-python-executable
     (treemacs-git-commit-diff-mode t)))
 
-(use-package savehist
-  :ensure nil
-  :init
-  (savehist-mode))
-
-(use-package vertico
-  :bind
-  (:map vertico-map
-        ("C-j" . 'vertico-next)
-        ;; ("C-k" . 'vertico-next)
-        ;; ("C-j" . 'vertico-previous)
-        ("C-k" . 'vertico-previous)
-        )
-  ;; :config
-  ;; (vertico-reverse-mode)
-  :custom
-  (vertico-resize t)
-  )
-
 (use-package vterm
   :bind
-  (:map vterm-mode-map
-        ("<insert-state> M-l" . 'vterm-send-right)
-        ("<insert-state> M-h" . 'vterm-send-left))
+  ;; (:map vterm-mode-map
+  ;;       ("<insert-state> M-<left>" . (lambda () (interactive) (vterm-send-key (kbd "M-<left>"))))
+  ;;       ("<insert-state> M-<right>" . (lambda () (interactive) (vterm-send-key (kbd "M-<right>"))))
+  ;;       )
   :custom
   ;; (vterm-shell (executable-find "fish"))
   (vterm-shell (executable-find "zsh"))
-  (vterm-max-scrollback 10000))
+  (vterm-max-scrollback 10000)
+  ;; :config
+  ;; (define-key vterm-mode-map (kbd "M-<left>") nil)
+  )
 
 (use-package vterm-toggle
   :bind
@@ -1702,7 +1794,8 @@ be passed to EVAL-FUNC as its rest arguments"
   (lsp-deferred)
   :hook
   (lsp-mode . (lambda ()
-                (setq-local evil-lookup-func #'lsp-describe-thing-at-point)))
+                (setq-local evil-lookup-func #'lsp-describe-thing-at-point)
+                (setq-local lsp-enable-indentation nil)))
   ;; :general
   ;; (lc/local-leader-keys
   ;;   :states 'normal
@@ -1796,6 +1889,14 @@ be passed to EVAL-FUNC as its rest arguments"
 (use-package nix-mode
 :mode "\\.nix\\'")
 
+(use-package python-black
+  :bind
+  (:map python-ts-mode-map
+        ("<localleader>=" . 'python-black-buffer)
+        )
+  ;; :hook (python-mode . python-black-on-save-mode-enable-dwim)
+  )
+
 (use-package csv-mode
   :hook (csv-mode . lc/init-csv-mode)
   :bind
@@ -1806,8 +1907,15 @@ be passed to EVAL-FUNC as its rest arguments"
         ("<localleader>u" . 'csv-unalign-fields)
         ("<localleader>s" . 'csv-sort-fields)
         ("<localleader>;" . 'lc/set-csv-semicolon-separator)
-        ("<localleader>," . 'lc/reset-csv-separators))
+        ("<localleader>," . 'lc/reset-csv-separators)
+        ("<leader>j" . 'csv-columns-hydra/body)
+        )
   :init
+  (defun lc/forward-word ()
+    (interactive)
+    (forward-symbol)
+    (forward-symbol)
+    (backward-word))
   (defun lc/csv-align-visible (&optional arg)
     "Align visible fields"
     (interactive "P")
@@ -1843,12 +1951,23 @@ be passed to EVAL-FUNC as its rest arguments"
                          collect (apply #'color-rgb-to-hex
                                         (color-hsl-to-rgb i 0.3 0.5)))))
       (cl-loop for i from 2 to n by 2
-            for c in colors
-            for r = (format "^\\([^%c\n]+%c\\)\\{%d\\}" separator separator i)
-            do (font-lock-add-keywords nil `((,r (1 '(face (:foreground ,c)))))))))
+               for c in colors
+               for r = (format "^\\([^%c\n]+%c\\)\\{%d\\}" separator separator i)
+               do (font-lock-add-keywords nil `((,r (1 '(face (:foreground ,c)))))))))
+  (defhydra csv-columns-hydra (:hint nil)
+    "
+ [_k_] ⇢⇠ previous column [_j_] ⇠⇢ next column
+ [_o_] ⇢⇠ expand window
+│ [_q_] quit"
+    ("j" lc/forward-word)
+    ("k" backward-word)
+    ("o" doom/window-enlargen)
+    ("q" nil :color blue))
   )
 
 (use-package envrc
+  :commands
+  (envrc-propagate-environment)
   :hook
   (python-ts-mode org-jupyter-mode))
 
@@ -1859,6 +1978,7 @@ be passed to EVAL-FUNC as its rest arguments"
                         (lc/init-pyright)
                         (lsp-deferred)
                         (lsp-diagnostics-mode -1)
+                        (aggressive-indent-mode -1)
                         ))
   :custom
   (lsp-pyright-typechecking-mode "basic")
@@ -2001,18 +2121,18 @@ be passed to EVAL-FUNC as its rest arguments"
                               :module "pytest"
                               :debugger 'debugpy
                               :name "dap-debug-test-at-point"))
-  (defvar eco-cold-start (list
-                          :name "mill"
-                          :type "python"
-                          :request "launch"
-                          :program (expand-file-name "~/git/ran_optimization/scripts_smart_sleep_orchestration/find_cold_start_smart_sleep_thresholds.py")
-                          ;; :env '(("NO_JSON_LOG" . "true"))
-                          ;; :args ["-m" "mill" "--config" "user_luca"]
-                          ))
+  (defvar ft-api (list
+                  :name "api"
+                  :type "python"
+                  :request "launch"
+                  :program (expand-file-name "~/git/ft-api/ft_api/__main__.py")
+                  ;; :env '(("NO_JSON_LOG" . "true"))
+                  ;; :args ["--debug"]
+                  ))
 
   (dap-register-debug-template "dap-debug-script" dap-script-args)
   (dap-register-debug-template "dap-debug-test-at-point" dap-test-args)
-  (dap-register-debug-template "eco-cold-start" eco-cold-start)
+  (dap-register-debug-template "ft-api" ft-api)
   )
 
 (use-package flymake-ruff
@@ -2023,12 +2143,13 @@ be passed to EVAL-FUNC as its rest arguments"
   :init
   ;; (add-to-list 'native-comp-bootstrap-deny-list ".*jupyter.*")
   ;; (add-to-list 'native-comp-jit-compilation-deny-list ".*jupyter.*")
-)
+  )
 
 (use-package jupyter
   :vc (:fetcher "github" :repo "nnicandro/emacs-jupyter")
   :bind
   (:map python-ts-mode-map
+        ("<localleader>i" . 'lc/jupyter-inspect-df)
         ("<localleader>ee" . 'jupyter-eval-line-or-region)
         ;; ("<visual-state><localleader>e" . 'jupyter-eval-line-or-region)
         ("<localleader>ed" . 'jupyter-eval-defun)
@@ -2038,7 +2159,7 @@ be passed to EVAL-FUNC as its rest arguments"
         ("<localleader>kd" . 'lc/kill-repl-kernel)
         ("<localleader>ki" . 'jupyter-org-interrupt-kernel)
         ("<localleader>kr" . 'jupyter-repl-restart-kernel)
-        ("<localleader>J" . 'lc/jupyter-repl)
+        ("<localleader>j" . 'lc/jupyter-repl)
         )
   (:map org-mode-map
         ("<localleader>=" . (lambda () (interactive) (jupyter-org-insert-src-block t nil)))
@@ -2052,16 +2173,14 @@ be passed to EVAL-FUNC as its rest arguments"
   (jupyter-repl-interaction-mode .   (lambda () (setq-local evil-lookup-func #'jupyter-inspect-at-point)))
   (jupyter-repl-persistent-mode . (lambda ()  ;; we activate org-interaction-mode ourselves
                                     (when (derived-mode-p 'org-mode) (jupyter-org-interaction-mode))))
+  (envrc-mode . (lambda ()
+                  (advice-add 'lc/jupyter-repl :around #'envrc-propagate-environment)
+                  ;; (advice-add 'jupyter-repl-restart-kernel :around #'envrc-propagate-environment)
+                  ))
   :custom
   (jupyter-repl-prompt-margin-width 4)
   (jupyter-eval-use-overlays nil)
   :preface
-  (defun jupyter-command-venv (&rest args)
-    "This overrides jupyter-command to use the virtualenv's jupyter"
-    (let ((jupyter-executable (executable-find "jupyter")))
-      (with-temp-buffer
-        (when (zerop (apply #'process-file jupyter-executable nil t nil args))
-          (string-trim-right (buffer-string))))))
   (defun lc/jupyter-eval-buffer ()
     "Send the contents of BUFFER using `jupyter-current-client'."
     (interactive)
@@ -2069,7 +2188,7 @@ be passed to EVAL-FUNC as its rest arguments"
   (defun lc/jupyter-repl ()
     "If a buffer is already associated with a jupyter buffer, then pop to it. Otherwise start a jupyter kernel."
     (interactive)
-    (if (bound-and-true-p jupyter-current-client)
+    (if (and (bound-and-true-p jupyter-current-client) (buffer-live-p (eieio-oref jupyter-current-client 'buffer)))
         (jupyter-repl-pop-to-buffer)
       (call-interactively 'jupyter-repl-associate-buffer)))
   (defun lc/kill-repl-kernel ()
@@ -2108,11 +2227,11 @@ be passed to EVAL-FUNC as its rest arguments"
         (goto-char (point-max))
         (insert content)
         (jupyter-repl-ret))))
-  :init
+  :config
   ;; TODO refactor to avoid duplication of dap code
   (setq lc/jupyter-temp-dataframe-buffer  "*inspect-df*")
   (setq lc/jupyter-temp-dataframe-path "~/tmp-inspect-df.csv")
-  (advice-add 'jupyter-command :override #'jupyter-command-venv)
+  ;; (advice-add 'jupyter-command :override #'jupyter-command-venv)
   ;; stop spawning output buffer
   (add-to-list 'display-buffer-alist
                '("\\*jupyter-output\\*\\|\\*jupyter-error\\*"
@@ -2243,7 +2362,7 @@ be passed to EVAL-FUNC as its rest arguments"
   :hook (typescript-mode . (lambda () (lsp-deferred) (lsp-diagnostics-mode -1)))
   :init
   (define-derived-mode typescript-tsx-mode typescript-mode "TypeScript[tsx]")
-  (add-to-list 'auto-mode-alist '("\.tsx\'" . typescript-tsx-mode))
+  (add-to-list 'auto-mode-alist '("\\.tsx\\'" . typescript-tsx-mode))
   (add-hook 'typescript-tsx-mode-hook
             (lambda () (tree-sitter-mode) (tree-sitter-hl-mode)))
   :config (setq typescript-indent-level 2)
@@ -2255,6 +2374,15 @@ be passed to EVAL-FUNC as its rest arguments"
                        (flymake-eslint-enable)
                        (setq-local flymake-eslint-project-root (locate-dominating-file buffer-file-name "tsconfig.json"))))
   )
+
+(use-package markdown-mode
+  :init
+  (setq setq t)
+  (setq markdown-enable-html t)
+  (add-hook 'markdown-mode-hook #'conditionally-turn-on-pandoc)
+  )
+
+(use-package yaml-mode)
 
 (use-package evil
   :config
