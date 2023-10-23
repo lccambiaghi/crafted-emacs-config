@@ -37,7 +37,8 @@
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
  '(org-fold-catch-invisible-edits 'error nil nil "Customized with use-package org")
- '(package-selected-packages '(perspective-tabs project-tab-groups dape))
+ '(package-selected-packages
+   '(weblorg templatel perspective-tabs project-tab-groups dape))
  '(package-vc-selected-packages
    '((perspective-tabs :vc-backend Git :url "https://git.sr.ht/~woozong/perspective-tabs")
      (dape :vc-backend Git :url "https://github.com/svaante/dape")))

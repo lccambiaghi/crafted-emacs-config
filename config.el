@@ -1728,6 +1728,7 @@ be passed to EVAL-FUNC as its rest arguments"
   ("<leader>pp" . 'lc/switch-or-create-project)
   ("<leader>TAB m" . (lambda () (interactive) (persp-switch "main")))
   ("<leader>TAB d" . (lambda () (interactive) (persp-kill (persp-current-name))))
+  ("<leader>o t" . (lambda () (interactive) (persp-switch "term") (vterm)))
   ("<leader>TAB x" . 'persp-kill-others)
   ("<leader>nn" . 'lc/open-denote-or-switch)
   ("<leader>oc" . (lambda ()
