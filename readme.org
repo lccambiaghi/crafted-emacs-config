@@ -11,20 +11,18 @@
 
 After using [[https://github.com/doomemacs/doomemacs][doom-emacs]] for the whole of 2020, in early 2021 I wrote
 [[https://github.com/lccambiaghi/vanilla-emacs][my own config from scratch]]. Over 2 years I accumulated snippets and
-packages until it became slow and complex. In 2023 I decided to
-simplify my configuration files.
+packages until it became slow and complex. In 2023 I decided to simplify my configuration files.
 
 Approach:
-- Use [[https://github.com/SystemCrafters/crafted-emacs][crafted-emacs]] as a solid foundation
-  - Great =init.el= and =early-init.el=
-  - Solid defaults for built-in packages e.g. =org-mode=
-  - Great configuration of essential external packages e.g. =corfu=, =vertico=, ...
+- +Use [[https://github.com/SystemCrafters/crafted-emacs][crafted-emacs]] as a solid foundation+
+  - +Great =init.el= and =early-init.el=+
+  - +Solid defaults for built-in packages e.g. =org-mode=+
+  - +Great configuration of essential external packages e.g. =corfu=, =vertico=, ...+
 - Cherry-pick the essential parts of my "big" vanilla config
 - Use more of the built-in packages, ~emacs29~ comes with a lot of cool
   stuff (=use-package=, =tree-sitter=, =modus-themes=), plus I can try
   leverage more of the features introduced with emacs 27 and 28
-  (=project=, =tab-bar=, =flymake=). I tried to set up =eglot= but
-  I really need =dap-mode=.
+  (=project=, =tab-bar=, =flymake=, =eglot=)
 
 ** Structure
 
@@ -2412,7 +2410,6 @@ NOTE:
   :hook
   (dired-mode . denote-dired-mode)
   :bind
-  
   ("<leader>nk" . 'denote-keywords-add)
   ("<leader>nK" . 'denote-keywords-remove)
   ("<leader>nr" . 'denote-rename-file)
@@ -2968,10 +2965,8 @@ any directory proferred by `consult-dir'."
   ("<leader>pp" . 'lc/switch-or-create-project)
   ("<leader>TAB m" . (lambda () (interactive) (persp-switch "main")))
   ("<leader>TAB d" . (lambda () (interactive) (persp-kill (persp-current-name))))
-  ("<leader>nn" . (lambda () (interactive)
-                    (project--ensure-read-project-list)
-                    (lc/switch-or-create-project "denote")
-                    (call-interactively 'denote-open-or-create)))
+  ("<leader>TAB x" . 'persp-kill-others)
+  ("<leader>nn" . 'lc/open-denote-or-switch)
   ("<leader>oc" . (lambda ()
                     (interactive)
                     (project--ensure-read-project-list)
@@ -2997,23 +2992,24 @@ any directory proferred by `consult-dir'."
       ;; 1. if tab exists, switch
       (if (member pname (persp-names))
           (persp-switch pname)
+        ;; 2. create new tab and open projeft
         (progn
           (persp-switch pname)
           (let ((default-directory project))
             (project-find-file))))
       ))
+  (defun lc/open-denote-or-switch ()
+    (interactive)
+    (cond
+    ;; 1. in denote, open note or create
+     ((string-equal "denote" (persp-current-name)) (call-interactively 'denote-open-or-create))
+    ;; 2. if tab exists, switch
+     ((member "denote" (persp-names)))
+    ;; 3. create new tab and open projeft
+     (t (progn (persp-switch "denote") (call-interactively 'denote-open-or-create)))))
   :init
   (setq persp-state-default-file (expand-file-name ".persp" user-emacs-directory))
   (setq persp-mode-prefix-key (kbd "<leader> TAB"))
-  
-  (defun lc/is-persp-empty? ()
-    (seq-filter
-     ;; filter away buffers which should be hidden
-     (lambda (buffer-name) (not (string-prefix-p "*" buffer-name)))
-     ;; get list of buffer names in current perspective
-     (mapcar (lambda (elm) (buffer-name (car elm)))
-             (centaur-tabs-view (centaur-tabs-current-tabset)))
-     ))
   (persp-mode))
 #+end_src
 

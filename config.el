@@ -1552,7 +1552,6 @@ be passed to EVAL-FUNC as its rest arguments"
   :hook
   (dired-mode . denote-dired-mode)
   :bind
-  
   ("<leader>nk" . 'denote-keywords-add)
   ("<leader>nK" . 'denote-keywords-remove)
   ("<leader>nr" . 'denote-rename-file)
@@ -1729,10 +1728,8 @@ be passed to EVAL-FUNC as its rest arguments"
   ("<leader>pp" . 'lc/switch-or-create-project)
   ("<leader>TAB m" . (lambda () (interactive) (persp-switch "main")))
   ("<leader>TAB d" . (lambda () (interactive) (persp-kill (persp-current-name))))
-  ("<leader>nn" . (lambda () (interactive)
-                    (project--ensure-read-project-list)
-                    (lc/switch-or-create-project "denote")
-                    (call-interactively 'denote-open-or-create)))
+  ("<leader>TAB x" . 'persp-kill-others)
+  ("<leader>nn" . 'lc/open-denote-or-switch)
   ("<leader>oc" . (lambda ()
                     (interactive)
                     (project--ensure-read-project-list)
@@ -1758,23 +1755,24 @@ be passed to EVAL-FUNC as its rest arguments"
       ;; 1. if tab exists, switch
       (if (member pname (persp-names))
           (persp-switch pname)
+        ;; 2. create new tab and open projeft
         (progn
           (persp-switch pname)
           (let ((default-directory project))
             (project-find-file))))
       ))
+  (defun lc/open-denote-or-switch ()
+    (interactive)
+    (cond
+    ;; 1. in denote, open note or create
+     ((string-equal "denote" (persp-current-name)) (call-interactively 'denote-open-or-create))
+    ;; 2. if tab exists, switch
+     ((member "denote" (persp-names)))
+    ;; 3. create new tab and open projeft
+     (t (progn (persp-switch "denote") (call-interactively 'denote-open-or-create)))))
   :init
   (setq persp-state-default-file (expand-file-name ".persp" user-emacs-directory))
   (setq persp-mode-prefix-key (kbd "<leader> TAB"))
-  
-  (defun lc/is-persp-empty? ()
-    (seq-filter
-     ;; filter away buffers which should be hidden
-     (lambda (buffer-name) (not (string-prefix-p "*" buffer-name)))
-     ;; get list of buffer names in current perspective
-     (mapcar (lambda (elm) (buffer-name (car elm)))
-             (centaur-tabs-view (centaur-tabs-current-tabset)))
-     ))
   (persp-mode))
 
 (use-package perspective-tabs
