@@ -32,25 +32,9 @@
       (let ((org-confirm-babel-evaluate nil))
         (org-babel-tangle)))))
 
-(use-package helpful
-  :config
-  (defun helpful--autoloaded-p (sym buf)
-    "Return non-nil if function SYM is autoloaded."
-    (-when-let (file-name (buffer-file-name buf))
-      (setq file-name (s-chop-suffix ".gz" file-name))
-      (condition-case nil
-          (help-fns--autoloaded-p sym file-name)
-                                        ; new in Emacs 29.0.50
-                                        ; see https://github.com/Wilfred/helpful/pull/283
-        (error (help-fns--autoloaded-p sym))))))
-
 (use-package emacs
   :init
   (setq use-short-answers t))
-
-(use-package emacs
-  :init
-  (electric-indent-mode -1))
 
 (use-package bookmark
   :ensure nil
@@ -260,6 +244,61 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
 
 (use-package emacs
   :init
+  (setq tab-always-indent 'complete)
+  ;; hide completions buffer after completion
+  (setq completion-auto-help t)
+  ;; switch to completions buffer on second tab
+  (setq completion-auto-select 'second-tab)
+  ;; show one column in completions buffer
+  (setq completions-format 'one-column)
+  (setq completions-max-height 20)
+
+  ;; Up/down when completing in the minibuffer
+  (define-key minibuffer-local-map (kbd "C-k") #'minibuffer-previous-completion)
+  (define-key minibuffer-local-map (kbd "C-j") #'minibuffer-next-completion)
+  ;; Up/down when competing in a normal buffer
+  (define-key completion-in-region-mode-map (kbd "C-k") #'minibuffer-previous-completion)
+  (define-key completion-in-region-mode-map (kbd "C-j") #'minibuffer-next-completion)
+  (defun lc/sort-by-alpha-length (elems)
+    "Sort ELEMS first alphabetically, then by length."
+    (sort elems (lambda (c1 c2)
+                  (or (string-version-lessp c1 c2)
+                      (< (length c1) (length c2))))))
+
+  (defun lc/sort-by-history (elems)
+    "Sort ELEMS by minibuffer history.
+Use `mct-sort-sort-by-alpha-length' if no history is available."
+    (if-let ((hist (and (not (eq minibuffer-history-variable t))
+			(symbol-value minibuffer-history-variable))))
+	(minibuffer--sort-by-position hist elems)
+      (lc/sort-by-alpha-length elems)))
+
+  (defun lc/completion-category ()
+    "Return completion category."
+    (when-let ((window (active-minibuffer-window)))
+      (with-current-buffer (window-buffer window)
+	(completion-metadata-get
+	 (completion-metadata (buffer-substring-no-properties
+                               (minibuffer-prompt-end)
+                               (max (minibuffer-prompt-end) (point)))
+                              minibuffer-completion-table
+                              minibuffer-completion-predicate)
+	 'category))))
+
+  (defun lc/sort-multi-category (elems)
+    "Sort ELEMS per completion category."
+    (pcase (lc/completion-category)
+      ('nil elems) ; no sorting
+      ('kill-ring elems)
+      ('project-file (lc/sort-by-alpha-length elems))
+      (_ (lc/sort-by-history elems))))
+
+  (setq completions-sort #'lc/sort-multi-category)
+
+  )
+
+(use-package emacs
+  :init
   (add-hook 'window-setup-hook 'toggle-frame-maximized t))
 
 (use-package emacs
@@ -379,7 +418,9 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
   :hook (dired-mode . nerd-icons-dired-mode))
 
 (use-package nerd-icons-completion
-  :hook (marginalia-mode . nerd-icons-completion-marginalia-setup))
+  :hook (marginalia-mode . nerd-icons-completion-marginalia-setup)
+  :init
+  (nerd-icons-completion-mode))
 
 (use-package welcome-dashboard
   :vc (:fetcher "github" :repo "konrad1977/welcome-dashboard")
@@ -520,6 +561,43 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
       (progn (disable-theme lc/light-theme) (load-theme lc/dark-theme :no-confirm))))
   )
 
+(use-package helpful
+  :bind
+  (([remap describe-function] . helpful-callable)
+   ([remap describe-command]  . helpful-command)
+   ([remap describe-variable] . helpful-variable)
+   ([remap describe-key]      . helpful-key)
+   ([remap describe-symbol]   . helpful-symbol))
+  :config
+  ;; hotfix, maybe solved?
+  (defun helpful--autoloaded-p (sym buf)
+    "Return non-nil if function SYM is autoloaded."
+    (-when-let (file-name (buffer-file-name buf))
+      (setq file-name (s-chop-suffix ".gz" file-name))
+      (condition-case nil
+          (help-fns--autoloaded-p sym file-name)
+                                        ; new in Emacs 29.0.50
+                                        ; see https://github.com/Wilfred/helpful/pull/283
+        (error (help-fns--autoloaded-p sym)))))
+  )
+
+(use-package centaur-tabs
+  :hook
+  (emacs-startup . centaur-tabs-mode)
+  :init
+  (setq centaur-tabs-set-icons t)
+  (setq centaur-tabs-set-modified-marker t
+        centaur-tabs-modified-marker "M"
+        centaur-tabs-cycle-scope 'tabs)
+  (setq centaur-tabs-set-close-button nil)
+  (setq centaur-tabs-enable-ido-completion nil)
+  :config
+  (centaur-tabs-mode t)
+  (define-key evil-normal-state-map "gt" 'centaur-tabs-forward)
+  (define-key evil-normal-state-map "gT" 'centaur-tabs-backward)
+  ;; (centaur-tabs-group-by-projectile-project)
+  )
+
 (use-package evil
   :hook
   (edebug-mode . (lambda () (require 'evil-collection-edebug) (evil-normalize-keymaps)))
@@ -531,6 +609,7 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
   (evil-auto-indent nil)
   (evil-want-Y-yank-to-eol t)
   (evil-want-C-i-jump t)
+  (evil-undo-system 'undo-redo)
   :init
   (defun my/save-excursion-before-indenting (origin-fn &rest args)
     (save-excursion (apply origin-fn args)))
@@ -556,6 +635,9 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
   ;; unbind C-p so consult can use it
   (define-key evil-normal-state-map (kbd "C-p") nil)
   (define-key evil-insert-state-map (kbd "C-p") nil)
+  ;; unbind C-k so we can use it when completing
+  (define-key evil-normal-state-map (kbd "C-k") nil)
+  (define-key evil-insert-state-map (kbd "C-k") nil)
   (with-eval-after-load 'evil-maps
     (define-key evil-motion-state-map (kbd "SPC") nil)
     (define-key evil-motion-state-map (kbd "RET") nil)
@@ -837,6 +919,92 @@ be passed to EVAL-FUNC as its rest arguments"
             keys))))
   )
 
+(use-package hydra
+  :bind
+  ("<leader>ww" . 'evil-windows-hydra/body)
+  :config
+  (defhydra evil-windows-hydra (:hint nil
+                                      ;; :pre (smerge-mode 1)
+                                      ;; :post (smerge-auto-leave)
+                                      )
+    "
+ [_h_] ⇢⇠ decrease width [_l_] ⇠⇢ increase width
+ [_j_] decrease height [_k_] increase height
+│ [_q_] quit"
+    ("h" evil-window-decrease-width)
+    ("l" evil-window-increase-width)
+    ("j" evil-window-decrease-height)
+    ("k" evil-window-increase-height)
+    ("q" nil :color blue)))
+
+(use-package emacs
+  :init
+  (define-key emacs-lisp-mode-map (kbd "<normal-state> gr") nil)
+  (define-key global-map (kbd "<normal-state> gt") nil)
+  (define-key global-map (kbd "<normal-state> gT") nil)
+  (define-key global-map (kbd "C-j") nil)
+  (define-key global-map (kbd "C-k") nil)
+  )
+
+(use-package evil
+  :config
+  (evil-define-key 'normal 'global
+    (kbd "<leader>SPC") 'execute-extended-command
+    (kbd "<leader>R") 'restart-emacs
+    (kbd "<leader>;") 'eval-expression
+    ;; previous buffer
+    (kbd "<leader>`") '(lambda () (interactive) (switch-to-buffer (other-buffer (current-buffer) 1)))
+    (kbd "<leader>bd")  'kill-current-buffer
+    (kbd "<leader>br")  'revert-buffer
+    ;; delete file
+    (kbd "<leader>fD")  '(lambda () (interactive) (delete-file (buffer-file-name)))
+    (kbd "<leader>ff")  'find-file
+    (kbd "<leader>fR")  'rename-visited-file
+    (kbd "<leader>fs")  'save-buffer
+    (kbd "<leader>he")  'view-echo-area-messages
+    (kbd "<leader>hl")  'view-lossage
+    (kbd "<leader>hL")  'find-library
+    (kbd "<leader>hp")  'describe-package
+    (kbd "<leader>hv")  'describe-variable
+    (kbd "<leader>hf")  'describe-function
+    (kbd "<leader>hk")  'describe-key
+    (kbd "<leader>hK")  'describe-keymap
+    ;; lisp
+    (kbd "<leader>lr")  'raise-sexp
+    (kbd "<leader>lb")  'sp-forward-barf-sexp
+    (kbd "<leader>ls")  'sp-forward-slurp-sexp
+    (kbd "<leader>td")  'toggle-debug-on-error
+    (kbd "<leader>tf")  'auto-fill-mode
+    (kbd "<leader>tl")  'display-line-numbers-mode
+    ;; toggle wrapped lines
+    (kbd "<leader>tw")  '(lambda () (interactive) (toggle-truncate-lines))
+    (kbd "<leader>tm")  'toggle-frame-maximized
+    (kbd "<leader>u")  'universal-argument
+    (kbd "<leader>wd")  'delete-window
+    (kbd "<leader>wh")  'windmove-left
+    (kbd "<leader>wl")  'windmove-right
+    (kbd "<leader>wk")  'windmove-up
+    (kbd "<leader>wj")  'windmove-down
+    (kbd "<leader>wm")  'delete-other-windows
+    (kbd "<leader>wr")  'winner-redo
+    (kbd "<leader>ws")  'evil-window-split
+    (kbd "<leader>wu")  'winner-undo
+    (kbd "<leader>wv")  'evil-window-vsplit
+    (kbd "<leader>w=")  'balance-windows-area)
+  (evil-define-key 'insert 'global
+    (kbd "<leader>SPC") 'execute-extended-command
+    (kbd "M-<tab>") 'complete-symbol)
+  (evil-define-key 'visual 'global
+    (kbd "<leader>SPC") 'execute-extended-command)
+  ;; dired
+  (evil-define-key 'normal dired-mode-map
+    (kbd "SPC") 'evil-send-leader
+    (kbd "h") 'dired-up-directory
+    (kbd "l") 'dired-find-file)
+  (evil-define-key 'normal help-mode-map
+    (kbd "SPC") 'evil-send-leader)
+  )
+
 (use-package request
 :commands request)
 
@@ -1007,7 +1175,8 @@ be passed to EVAL-FUNC as its rest arguments"
          ("ESC" . 'transient-quit-one))
    (:map magit-mode-map
          ("<normal-state> zz" . 'evil-scroll-line-to-center)
-         ("<visual-state> zz" . 'evil-scroll-line-to-center)))
+         ("<visual-state> zz" . 'evil-scroll-line-to-center))
+   )
   :custom
   (magit-display-buffer-function #'magit-display-buffer-same-window-except-diff-v1)
   (magit-log-arguments '("--graph" "--decorate" "--color"))
@@ -1106,6 +1275,7 @@ be passed to EVAL-FUNC as its rest arguments"
         ("<visual-state><localleader>e" . 'eros-eval-last-sexp)
         ("<localleader>E" . 'org-export-dispatch)
         ("TAB" . nil)
+        ("C-j" . nil)
         )
   :custom
   (org-src-preserve-indentation t)
@@ -1148,7 +1318,7 @@ be passed to EVAL-FUNC as its rest arguments"
   ;; Only fold the current tree, rather than recursively
   (add-hook 'org-tab-first-hook #'+org-cycle-only-current-subtree-h)
   (add-hook 'org-mode-hook #'org-indent-mode)
-)
+  )
 
 (use-package org
   :preface
@@ -1339,44 +1509,6 @@ be passed to EVAL-FUNC as its rest arguments"
   (when (locate-library "denote")
     (consult-notes-denote-mode)))
 
-(use-package corfu
-  :hook
-  (prog-mode . corfu-mode)
-  (eshell-mode . (lambda ()
-                   (setq-local corfu-quit-at-boundary t
-                               corfu-quit-no-match t
-                               corfu-auto nil)
-		   (corfu-mode)))
-  :bind
-  (:map corfu-map
-        ("<insert-state><escape>" . 'corfu-quit)
-        ("<insert-state> RET" . 'corfu-complete)
-        ("<insert-state> C-j" . 'corfu-next)
-        ("<insert-state> C-k" . 'corfu-previous)
-        )
-  ("<leader>tc" . (lambda () (interactive) (corfu-mode)))
-  :custom
-  (corfu-min-width 80)
-  ;; Always have the same width
-  (corfu-max-width corfu-min-width)
-  ;; (corfu-auto nil)
-  (tab-always-indent 'complete)
-  :config
-  (add-hook 'eshell-mode-hook
-            )
-  )
-
-(use-package kind-icon
-  :custom
-  (kind-icon-default-face 'corfu-default) ; to compute blended backgrounds correctly
-  (kind-icon-blend-background nil)  ; Use midpoint color between foreground and background colors ("blended")?
-  (kind-icon-blend-frac 0.08)
-  :init
-  (with-eval-after-load 'corfu
-    (require 'kind-icon)
-    (add-to-list 'corfu-margin-formatters #'kind-icon-margin-formatter)
-    (add-hook 'modus-themes-after-load-theme-hook #'(lambda () (interactive) (kind-icon-reset-cache)))))
-
 (use-package embark
   :bind
   ("C-l" . 'embark-act)
@@ -1420,8 +1552,7 @@ be passed to EVAL-FUNC as its rest arguments"
   :hook
   (dired-mode . denote-dired-mode)
   :bind
-  ("<leader>nn" . (lambda () (interactive)
-                    (tabspaces-switch-or-create-workspace "denote") (call-interactively 'denote-open-or-create)))
+  
   ("<leader>nk" . 'denote-keywords-add)
   ("<leader>nK" . 'denote-keywords-remove)
   ("<leader>nr" . 'denote-rename-file)
@@ -1533,24 +1664,6 @@ be passed to EVAL-FUNC as its rest arguments"
   :custom
   (flymake-fringe-indicator-position 'right-fringe))
 
-(use-package hydra
-  :bind
-  ("<leader>ww" . 'evil-windows-hydra/body)
-  :config
-  (defhydra evil-windows-hydra (:hint nil
-                                      ;; :pre (smerge-mode 1)
-                                      ;; :post (smerge-auto-leave)
-                                      )
-    "
- [_h_] ⇢⇠ decrease width [_l_] ⇠⇢ increase width
- [_j_] decrease height [_k_] increase height
-│ [_q_] quit"
-    ("h" evil-window-decrease-width)
-    ("l" evil-window-increase-width)
-    ("j" evil-window-decrease-height)
-    ("k" evil-window-increase-height)
-    ("q" nil :color blue)))
-
 (use-package persistent-scratch
   :bind
   ("<leader>bs" . (lambda ()
@@ -1569,6 +1682,7 @@ be passed to EVAL-FUNC as its rest arguments"
   :ensure nil
   :bind
   ("<leader>pf" . 'project-find-file)
+  ("<leader>pb" . 'project-switch-to-buffer)
   :init
   (setq project-vc-extra-root-markers '("pyproject.toml" ".project"))
   (setq project-vc-ignores '(".idea" ".vscode" ".direnv"))
@@ -1600,68 +1714,76 @@ be passed to EVAL-FUNC as its rest arguments"
   ;; flip
   ("<leader>wf" . 'rotate-frame))
 
-(use-package tabspaces
-  :commands
-  (tabspaces-switch-or-create-workspace)
+(use-package tab-bar
+  :ensure nil
+  :custom
+  (tab-bar-show nil)
   :bind
-  ("<leader>pp" . 'tabspaces-open-or-create-project-and-workspace)
-  ;; add new project to list
-  ("<leader>TAB n" . 'tabspaces-project-switch-project-open-file)
-  ("<leader>TAB TAB" . 'tabspaces-switch-or-create-workspace)
-  ("<leader>TAB d" . 'tabspaces-kill-buffers-close-workspace)
   ("<leader>TAB h" . 'tab-bar-switch-to-prev-tab)
   ("<leader>TAB l" . 'tab-bar-switch-to-next-tab)
-  ("<leader>oc" . (lambda () (interactive)
-                         (tabspaces-switch-or-create-workspace "config")
-                         (find-file (concat lc/config-directory "/readme.org"))))
-  :custom
-  (tabspaces-use-filtered-buffers-as-default t)
-  ;; (tabspaces-default-tab "Default")
-  (tabspaces-remove-to-default t)
-  (tabspaces-include-buffers '("*scratch*"))
-  ;; sessions
-  ;; (tabspaces-session t)
-  ;; (tabspaces-session-auto-restore t)
-  :preface
-  (defun lc/setup-tabspaces ()
-    "Set up tabspace at startup."
-    ;; Add *Messages* and *splash* to Tab \`Home\'
-    (tabspaces-mode 1)
-    (progn
-      (tab-bar-rename-tab "Home")
-      (when (get-buffer "*Messages*")
-        (set-frame-parameter nil
-                             'buffer-list
-                             (cons (get-buffer "*Messages*") (frame-parameter nil 'buffer-list))))))
-  :config
-  (lc/setup-tabspaces)
-  ;; Filter Buffers for Consult-Buffer
-  (with-eval-after-load 'consult
-    ;; hide full buffer list (still available with "b" prefix)
-    (consult-customize consult--source-buffer :hidden t :default nil)
-    ;; set consult-workspace buffer list
-    (defvar consult--source-workspace
-      (list :name     "Workspace Buffers"
-            :narrow   ?w
-            :history  'buffer-name-history
-            :category 'buffer
-            :state    #'consult--buffer-state
-            :default  t
-            :items    (lambda () (consult--buffer-query
-                                  :predicate #'tabspaces--local-buffer-p
-                                  :sort 'visibility
-                                  :as #'buffer-name)))
-      "Set workspace buffer list for consult-buffer.")
-    (add-to-list 'consult-buffer-sources 'consult--source-workspace)))
+  )
 
-(use-package treesit-auto
-  :commands (global-treesit-auto-mode)
-  :when (and (member "TREE_SITTER" (split-string system-configuration-features))
-             (executable-find "tree-sitter"))
+(use-package perspective
+  :commands (persp-new persp-switch persp-state-save)
+  :bind
+  ("<leader>pp" . 'lc/switch-or-create-project)
+  ("<leader>TAB m" . (lambda () (interactive) (persp-switch "main")))
+  ("<leader>TAB d" . (lambda () (interactive) (persp-kill (persp-current-name))))
+  ("<leader>nn" . (lambda () (interactive)
+                    (project--ensure-read-project-list)
+                    (lc/switch-or-create-project "denote")
+                    (call-interactively 'denote-open-or-create)))
+  ("<leader>oc" . (lambda ()
+                    (interactive)
+                    (project--ensure-read-project-list)
+                    (lc/switch-or-create-project "~/.config/emacs")))
+  ;; (lc/leader-keys
+  ;;  "<leader>TAB" '(:ignore true :wk "tab")
+  ;;  "TAB TAB" 'persp-switch
+  ;;  "TAB `" 'persp-switch-last
+  ;;  "TAB d" 'persp-kill
+  ;;  "TAB h" 'persp-prev
+  ;;  "TAB l" 'persp-next
+  ;;  "TAB x" '((lambda () (interactive) (persp-kill (persp-current-name))) :wk "kill current")
+  ;;  "TAB X" '((lambda () (interactive) (persp-kill (persp-names))) :wk "kill all")
+  ;;  "TAB m" '(lc/main-tab :wk "main"))
+  :preface
+  (defun lc/switch-or-create-project (&optional project)
+    ;; Select project from completing-read
+    (interactive
+     (list (project-prompt-project-dir)))
+    ;; Set vars
+    (let* ((project-switch-commands #'project-find-file)
+           (pname (file-name-nondirectory (directory-file-name project))))
+      ;; 1. if tab exists, switch
+      (if (member pname (persp-names))
+          (persp-switch pname)
+        (progn
+          (persp-switch pname)
+          (let ((default-directory project))
+            (project-find-file))))
+      ))
   :init
-  (setq treesit-font-lock-level 3)
-  (require 'treesit)
-  (global-treesit-auto-mode))
+  (setq persp-state-default-file (expand-file-name ".persp" user-emacs-directory))
+  (setq persp-mode-prefix-key (kbd "<leader> TAB"))
+  
+  (defun lc/is-persp-empty? ()
+    (seq-filter
+     ;; filter away buffers which should be hidden
+     (lambda (buffer-name) (not (string-prefix-p "*" buffer-name)))
+     ;; get list of buffer names in current perspective
+     (mapcar (lambda (elm) (buffer-name (car elm)))
+             (centaur-tabs-view (centaur-tabs-current-tabset)))
+     ))
+  (persp-mode))
+
+(use-package perspective-tabs
+  :vc (:fetcher "sourcehut" :repo "woozong/perspective-tabs")
+  :after (perspective)
+  :bind
+  ("<leader>TAB TAB" . 'perspective-tabs-new)
+  :init
+  (perspective-tabs-mode +1))
 
 (use-package treemacs
   :bind
@@ -1682,6 +1804,27 @@ be passed to EVAL-FUNC as its rest arguments"
   (treemacs-fringe-indicator-mode 'always)
   (when treemacs-python-executable
     (treemacs-git-commit-diff-mode t)))
+
+(use-package treesit-auto
+  :commands (global-treesit-auto-mode)
+  :when (and (member "TREE_SITTER" (split-string system-configuration-features))
+             (executable-find "tree-sitter"))
+  :preface
+  (defun crafted-tree-sitter-load (lang-symbol)
+    "Setup tree-sitter for a language.
+
+This must be called in the user's configuration to configure
+tree-sitter for LANG-SYMBOL.
+
+Example: `(crafted-tree-sitter-load 'python)'"
+    (tree-sitter-require lang-symbol)
+    (let ((mode-hook-name
+           (intern (concat (symbol-name lang-symbol) "-mode-hook"))))
+      (add-hook mode-hook-name #'tree-sitter-mode)))
+  :init
+  (setq treesit-font-lock-level 3)
+  (require 'treesit)
+  (global-treesit-auto-mode))
 
 (use-package vterm
   ;; :bind
@@ -1717,48 +1860,57 @@ be passed to EVAL-FUNC as its rest arguments"
   :config
   (require 'cl))
 
-(use-package lsp-mode
-  :commands
-  (lsp-deferred)
+(use-package eglot
+  :commands (eglot eglot-ensure)
   :hook
-  (lsp-mode . (lambda ()
-                (setq-local evil-lookup-func #'lsp-describe-thing-at-point)
-                (setq-local lsp-enable-indentation nil)))
-  ;; :general
-  ;; (lc/local-leader-keys
-  ;;   :states 'normal
-  ;;   :keymaps 'lsp-mode-map
-  ;;   "i" '(:ignore t :which-key "import")
-  ;;   "i o" '(lsp-organize-imports :wk "optimize")
-  ;;   "l" '(:keymap lsp-command-map :wk "lsp")
-  ;;   "a" '(lsp-execute-code-action :wk "code action")
-  ;;   "r" '(lsp-rename :wk "rename"))
+  (python-ts-mode . eglot-ensure)
   :custom
-  (lsp-restart 'ignore)
-  (lsp-eldoc-enable-hover nil)
-  (lsp-signature-auto-activate nil)
-  ;; (lsp-eldoc-render-all nil)
-  (lsp-enable-file-watchers nil)
-  (lsp-keep-workspace-alive nil)
-  (lsp-auto-execute-action nil)
-  (lsp-before-save-edits nil)
-  (lsp-headerline-breadcrumb-enable nil)
-  (lsp-modeline-diagnostics-enable nil)
-  (lsp-diagnostics-provider :none)
-  :config
-  (add-to-list 'lsp-language-id-configuration '(python-ts-mode . "python"))
+  (eglot-autoshutdown t)
+  (eglot-workspace-configuration
+   '(:pyright (:useLibraryCodeForTypes t :openFilesOnly :json-false))
+   (read-process-output-max (* 1024 1024))
+   (eglot-sync-connect 0))
   )
 
-(use-package lsp-ui
-  :bind
-  ("<localleader>g" . 'lsp-ui-doc-glance)
-  :custom
-  (lsp-ui-doc-show-with-cursor nil) ;; change this to t for auto doc
-  (lsp-ui-doc-delay 2)
-  (lsp-ui-doc-show-with-mouse nil)
-  (lsp-ui-sideline-enable nil)
-  ;; (lsp-ui-sideline-show-diagnostics nil)
-  ;; (lsp-ui-sideline-show-hover nil)
+(use-package dape
+  :vc (:fetcher "github" :repo "svaante/dape")
+  :demand
+  :init
+  (setq dape--debug-on '(io info error std-server))
+  :config
+  (add-to-list 'dape-configs
+               `(api
+		 modes (python-ts-mode python-mode)
+		 command "/Users/cambiaghiluca/git/aa-api/.direnv/python-3.11/bin/python"
+		 command-args ("-m" "debugpy.adapter")
+		 :type "executable"
+		 :request "launch"
+		 :cwd dape-cwd-fn
+		 ;; :cwd "/Users/cambiaghiluca/aa-api/"
+		 :program dape-find-file-buffer-default
+		 ;; :program "/Users/cambiaghiluca/git/aa-api/api/__main__.py"
+		 :args ["--debug"]
+		 ))
+  ;; Add inline variable hints, this feature is highly experimental
+  ;; (setq dape-inline-variables t)
+
+  ;; To remove info buffer on startup
+  ;; (remove-hook 'dape-on-start-hooks 'dape-info)
+
+  ;; To remove repl buffer on startup
+  ;; (remove-hook 'dape-on-start-hooks 'dape-repl)
+
+  ;; By default dape uses gdb keybinding prefix
+  ;; (setq dape-key-prefix "\C-x\C-a")
+
+  ;; Use n for next etc. in REPL
+  ;; (setq dape-repl-use-shorthand t)
+
+  ;; Kill compile buffer on build success
+  ;; (add-hook 'dape-compile-compile-hooks 'kill-buffer)
+
+  ;; Projectile users
+  ;; (setq dape-cwd-fn 'projectile-project-root)
   )
 
 (use-package clojure-mode
@@ -1898,169 +2050,6 @@ be passed to EVAL-FUNC as its rest arguments"
   (envrc-propagate-environment)
   :hook
   (python-ts-mode org-jupyter-mode))
-
-(use-package lsp-pyright
-  :hook
-  (python-ts-mode . (lambda ()
-                        (require 'lsp-pyright)
-                        (lc/init-pyright)
-                        (lsp-deferred)
-                        (lsp-diagnostics-mode -1)
-                        ))
-  :custom
-  (lsp-pyright-typechecking-mode "basic")
-  (python-indent-guess-indent-offset nil)
-  :preface
-  (defun lc/init-pyright ()
-    (lsp-register-client
-     (make-lsp-client
-      :new-connection (lsp-stdio-connection (lambda ()
-                                              (cons (lsp-package-path 'pyright)
-                                                    lsp-pyright-langserver-command-args)))
-      ;; NOTE: only change is here, adding python-ts-mode
-      :major-modes '(python-mode python-ts-mode)
-      :server-id 'pyright
-      :multi-root lsp-pyright-multi-root
-      :priority 3
-      :initialized-fn (lambda (workspace)
-                        (with-lsp-workspace workspace
-                          ;; we send empty settings initially, LSP server will ask for the
-                          ;; configuration of each workspace folder later separately
-                          (lsp--set-configuration
-                           (make-hash-table :test 'equal))))
-      :download-server-fn (lambda (_client callback error-callback _update?)
-                            (lsp-package-ensure 'pyright callback error-callback))
-      :notification-handlers (lsp-ht ("pyright/beginProgress" 'lsp-pyright--begin-progress-callback)
-                                     ("pyright/reportProgress" 'lsp-pyright--report-progress-callback)
-                                     ("pyright/endProgress" 'lsp-pyright--end-progress-callback))))
-    ))
-
-(use-package dap-mode
-  :hook
-  (;; (dap-mode . corfu-mode)
-   (dap-terminated . lc/hide-debug-windows)
-   ;; (dap-stopped  . lc/switch-to-output-buf)
-   ;; (dap-session-created . (lambda (_arg) (projectile-save-project-buffers)))
-   (dap-ui-repl-mode . (lambda () (setq-local truncate-lines t))))
-  :bind
-  (:map lsp-mode-map
-        ("<localleader>dd" . 'dap-debug)
-        ("<localleader>db" . 'dap-breakpoint-toggle)
-        ;; "d B" '(dap-ui-breakpoints-list :wk "breakpoint list")
-        ("<localleader>dc" . 'dap-continue)
-        ("<localleader>dn" . 'dap-next)
-        ("<localleader>de" . 'dap-eval-thing-at-point)
-        ("<localleader>di" . 'dap-step-in)
-        ("<localleader>dl" . 'dap-debug-last)
-        ("<localleader>dq" . 'dap-disconnect)
-        ("<localleader>dr" . 'dap-ui-repl)
-        ("<localleader>di" . 'lc/dap-inspect-df)
-        ;; templates
-        ("<localleader>dt" . (lambda () (interactive) (dap-debug dap-test-args)))
-        ("<localleader>ds" . (lambda () (interactive) (dap-debug dap-script-args))))
-  (:map dap-ui-repl-mode-map
-        ("<insert-state><up>" . 'comint-previous-input))
-  :preface
-  (defun lc/dap-inspect-df (dataframe)
-    "Save the df to csv and open the file with csv-mode"
-    (interactive (list (read-from-minibuffer "DataFrame: " (evil-find-symbol nil))))
-    (dap-eval (format  "%s.to_csv('%s', index=False)" dataframe lc/dap-temp-dataframe-path))
-    (sleep-for 1)
-    (find-file-other-window lc/dap-temp-dataframe-path))
-  ;; hide stdout window  when done
-  (defun lc/hide-debug-windows (session)
-    "Hide debug windows when all debug sessions are dead."
-    (unless (-filter 'dap--session-running (dap--get-sessions))
-      (lc/kill-output-buffer)))
-  (defun lc/dap-python--executable-find (orig-fun &rest args)
-    (executable-find "python"))
-  (defun lc/kill-output-buffer ()
-    "Go to output buffer."
-    (interactive)
-    (let ((win (display-buffer-in-side-window
-                (dap--debug-session-output-buffer (dap--cur-session-or-die))
-                `((side . bottom) (slot . 5) (window-width . 0.20)))))
-      (delete-window win)))
-  (defun lc/window-resize-to-percentage (percentage)
-    (interactive)
-    (window-resize nil (- (truncate (* percentage (frame-height))) (window-height))))
-  (defun lc/reset-dap-windows ()
-    (interactive)
-    ;; display sessions and repl
-    (seq-doseq (feature-start-stop dap-auto-configure-features)
-      (when-let
-          (start-stop (alist-get feature-start-stop
-                                 ;; <
-                                 dap-features->windows))
-        (funcall (car start-stop))))
-    ;; display output buffer
-    (save-excursion (dap-go-to-output-buffer t))
-    ;; resize window
-    (save-window-excursion
-      ;; switch to main window
-      (winum-select-window-1)
-      (lc/window-resize-to-percentage 0.66)))
-  (defun lc/switch-to-output-buf ()
-    (when-let* ((splits (split-string buffer-file-name "/"))
-                (bla (car (last splits))))
-      (when (string-equal bla "pytest.py")
-        (switch-to-buffer (dap--debug-session-output-buffer (dap--cur-session-or-die))))))
-  :init
-  (setq lc/dap-temp-dataframe-buffer  "*inspect-df*")
-  (setq lc/dap-temp-dataframe-path "~/tmp-inspect-df.csv")
-  ;; prevent minibuffer prompt about reloading from disk
-  (setq revert-without-query '("~/tmp-inspect-df.csv"))
-  ;; (setq dap-auto-configure-features '(locals repl))
-  (setq dap-auto-configure-features '(sessions repl))
-  (setq dap-python-debugger 'debugpy)
-  ;; show stdout
-  (setq dap-auto-show-output t)
-  (setq dap-output-window-min-height 10)
-  (setq dap-output-window-max-height 200)
-  (setq dap-overlays-use-overlays nil)
-  :config
-  ;; configure windows
-  (require 'dap-ui)
-  (setq dap-ui-buffer-configurations
-        '(("*dap-ui-sessions*"
-           (side . bottom) (slot . 1) (window-height . 0.33))
-          ("*debug-window*"
-           (side . bottom) (slot . 2) (window-height . 0.33))
-          ("*dap-ui-repl*"
-           (side . bottom) (slot . 3) (window-height . 0.33))))
-  (dap-ui-mode 1)
-  ;; python virtualenv
-  (require 'dap-python)
-  (advice-add 'dap-python--pyenv-executable-find :around #'lc/dap-python--executable-find)
-  ;; debug templates
-  (defvar dap-script-args (list :type "python"
-                                :args []
-                                :cwd "${workspaceFolder}"
-                                :justMyCode :json-false
-                                :request "launch"
-                                :debugger 'debugpy
-                                :name "dap-debug-script"))
-  (defvar dap-test-args (list :type "python-test-at-point"
-                              :args ""
-                              :justMyCode :json-false
-                              ;; :cwd "${workspaceFolder}"
-                              :request "launch"
-                              :module "pytest"
-                              :debugger 'debugpy
-                              :name "dap-debug-test-at-point"))
-  (defvar ft-api (list
-                  :name "api"
-                  :type "python"
-                  :request "launch"
-                  :program (expand-file-name "~/git/ft-api/ft_api/__main__.py")
-                  ;; :env '(("NO_JSON_LOG" . "true"))
-                  ;; :args ["--debug"]
-                  ))
-
-  (dap-register-debug-template "dap-debug-script" dap-script-args)
-  (dap-register-debug-template "dap-debug-test-at-point" dap-test-args)
-  (dap-register-debug-template "ft-api" ft-api)
-  )
 
 (use-package flymake-ruff
   :hook
@@ -2230,7 +2219,7 @@ be passed to EVAL-FUNC as its rest arguments"
   (defun lc/init-jupyter ()
     (interactive)
     ;; only try to load in org-mode
-    (unless (member '(jupyter . t) org-babel-load-languages)
+    (unless (and (fboundp 'org-babel-load-languages) (member '(jupyter . t) org-babel-load-languages))
         ;; only load if jupyter is available
         (if (executable-find "jupyter")
             (let ((warning-minimum-level :error))
@@ -2304,63 +2293,3 @@ be passed to EVAL-FUNC as its rest arguments"
   )
 
 (use-package yaml-mode)
-
-(use-package evil
-  :config
-  (evil-define-key 'normal 'global
-    (kbd "<leader>SPC") 'execute-extended-command
-    (kbd "<leader>R") 'restart-emacs
-    (kbd "<leader>;") 'eval-expression
-    ;; previous buffer
-    (kbd "<leader>`") '(lambda () (interactive) (switch-to-buffer (other-buffer (current-buffer) 1)))
-    (kbd "<leader>bd")  'kill-current-buffer
-    (kbd "<leader>br")  'revert-buffer
-    ;; delete file
-    (kbd "<leader>fD")  '(lambda () (interactive) (delete-file (buffer-file-name)))
-    (kbd "<leader>ff")  'find-file
-    (kbd "<leader>fR")  'rename-visited-file
-    (kbd "<leader>fs")  'save-buffer
-    (kbd "<leader>he")  'view-echo-area-messages
-    (kbd "<leader>hf")  'describe-function
-    (kbd "<leader>hk")  'describe-key
-    (kbd "<leader>hK")  'describe-keymap
-    (kbd "<leader>hl")  'view-lossage
-    (kbd "<leader>hL")  'find-library
-    (kbd "<leader>hp")  'describe-package
-    (kbd "<leader>hv")  'describe-variable
-    ;; lisp
-    (kbd "<leader>lr")  'raise-sexp
-    (kbd "<leader>lb")  'sp-forward-barf-sexp
-    (kbd "<leader>ls")  'sp-forward-slurp-sexp
-    (kbd "<leader>td")  'toggle-debug-on-error
-    (kbd "<leader>tf")  'auto-fill-mode
-    (kbd "<leader>tl")  'display-line-numbers-mode
-    ;; toggle wrapped lines
-    (kbd "<leader>tw")  '(lambda () (interactive) (toggle-truncate-lines))
-    (kbd "<leader>tm")  'toggle-frame-maximized
-    (kbd "<leader>u")  'universal-argument
-    (kbd "<leader>wd")  'delete-window
-    (kbd "<leader>wh")  'windmove-left
-    (kbd "<leader>wl")  'windmove-right
-    (kbd "<leader>wk")  'windmove-up
-    (kbd "<leader>wj")  'windmove-down
-    (kbd "<leader>wm")  'delete-other-windows
-    (kbd "<leader>wr")  'winner-redo
-    (kbd "<leader>ws")  'evil-window-split
-    (kbd "<leader>wu")  'winner-undo
-    (kbd "<leader>wv")  'evil-window-vsplit
-    (kbd "<leader>w=")  'balance-windows-area)
-  (define-key emacs-lisp-mode-map (kbd "<normal-state> gr") nil)
-  (evil-define-key 'insert 'global
-    (kbd "<leader>SPC") 'execute-extended-command
-    (kbd "M-<tab>") 'complete-symbol)
-  (evil-define-key 'visual 'global
-    (kbd "<leader>SPC") 'execute-extended-command)
-  ;; dired
-  (evil-define-key 'normal dired-mode-map
-    (kbd "SPC") 'evil-send-leader
-    (kbd "h") 'dired-up-directory
-    (kbd "l") 'dired-find-file)
-  (evil-define-key 'normal help-mode-map
-    (kbd "SPC") 'evil-send-leader)
-  )

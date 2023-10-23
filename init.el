@@ -31,3 +31,30 @@
 ;; (require 'crafted-org-config)
 ;; (require 'crafted-ide-config)
 ;; (require 'crafted-writing-config)
+(custom-set-variables
+ ;; custom-set-variables was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ '(org-fold-catch-invisible-edits 'error nil nil "Customized with use-package org")
+ '(package-selected-packages '(perspective-tabs project-tab-groups dape))
+ '(package-vc-selected-packages
+   '((perspective-tabs :vc-backend Git :url "https://git.sr.ht/~woozong/perspective-tabs")
+     (dape :vc-backend Git :url "https://github.com/svaante/dape")))
+ '(safe-local-variable-values
+   '((eval add-hook 'after-save-hook
+	   (lambda nil
+	     (org-babel-tangle))
+	   nil t))))
+(custom-set-faces
+ ;; custom-set-faces was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ '(evil-goggles-change-face ((t (:inherit diff-removed))))
+ '(evil-goggles-delete-face ((t (:inherit diff-removed))))
+ '(evil-goggles-paste-face ((t (:inherit diff-added))))
+ '(evil-goggles-undo-redo-add-face ((t (:inherit diff-added))))
+ '(evil-goggles-undo-redo-change-face ((t (:inherit diff-changed))))
+ '(evil-goggles-undo-redo-remove-face ((t (:inherit diff-removed))))
+ '(evil-goggles-yank-face ((t (:inherit diff-changed)))))

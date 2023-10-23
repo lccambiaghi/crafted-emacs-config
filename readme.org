@@ -126,23 +126,7 @@ In order of appearance in my config:
         (org-babel-tangle)))))
 #+end_src
 
-** Fix helpful
-
-#+begin_src emacs-lisp
-(use-package helpful
-  :config
-  (defun helpful--autoloaded-p (sym buf)
-    "Return non-nil if function SYM is autoloaded."
-    (-when-let (file-name (buffer-file-name buf))
-      (setq file-name (s-chop-suffix ".gz" file-name))
-      (condition-case nil
-          (help-fns--autoloaded-p sym file-name)
-                                        ; new in Emacs 29.0.50
-                                        ; see https://github.com/Wilfred/helpful/pull/283
-        (error (help-fns--autoloaded-p sym))))))
-#+end_src
-
-** y-or-n
+** Use y-or-n
 
 #+begin_src emacs-lisp
 (use-package emacs
@@ -150,7 +134,7 @@ In order of appearance in my config:
   (setq use-short-answers t))
 #+end_src
 
-** Disable electric-indent-mode
+** COMMENT Disable electric-indent-mode
 
 #+begin_src emacs-lisp
 (use-package emacs
@@ -439,6 +423,65 @@ Note:
   )
 #+end_src
 
+** completion buffer
+
+#+begin_src emacs-lisp
+(use-package emacs
+  :init
+  (setq tab-always-indent 'complete)
+  ;; hide completions buffer after completion
+  (setq completion-auto-help t)
+  ;; switch to completions buffer on second tab
+  (setq completion-auto-select 'second-tab)
+  ;; show one column in completions buffer
+  (setq completions-format 'one-column)
+  (setq completions-max-height 20)
+
+  ;; Up/down when completing in the minibuffer
+  (define-key minibuffer-local-map (kbd "C-k") #'minibuffer-previous-completion)
+  (define-key minibuffer-local-map (kbd "C-j") #'minibuffer-next-completion)
+  ;; Up/down when competing in a normal buffer
+  (define-key completion-in-region-mode-map (kbd "C-k") #'minibuffer-previous-completion)
+  (define-key completion-in-region-mode-map (kbd "C-j") #'minibuffer-next-completion)
+  (defun lc/sort-by-alpha-length (elems)
+    "Sort ELEMS first alphabetically, then by length."
+    (sort elems (lambda (c1 c2)
+                  (or (string-version-lessp c1 c2)
+                      (< (length c1) (length c2))))))
+
+  (defun lc/sort-by-history (elems)
+    "Sort ELEMS by minibuffer history.
+Use `mct-sort-sort-by-alpha-length' if no history is available."
+    (if-let ((hist (and (not (eq minibuffer-history-variable t))
+			(symbol-value minibuffer-history-variable))))
+	(minibuffer--sort-by-position hist elems)
+      (lc/sort-by-alpha-length elems)))
+
+  (defun lc/completion-category ()
+    "Return completion category."
+    (when-let ((window (active-minibuffer-window)))
+      (with-current-buffer (window-buffer window)
+	(completion-metadata-get
+	 (completion-metadata (buffer-substring-no-properties
+                               (minibuffer-prompt-end)
+                               (max (minibuffer-prompt-end) (point)))
+                              minibuffer-completion-table
+                              minibuffer-completion-predicate)
+	 'category))))
+
+  (defun lc/sort-multi-category (elems)
+    "Sort ELEMS per completion category."
+    (pcase (lc/completion-category)
+      ('nil elems) ; no sorting
+      ('kill-ring elems)
+      ('project-file (lc/sort-by-alpha-length elems))
+      (_ (lc/sort-by-history elems))))
+
+  (setq completions-sort #'lc/sort-multi-category)
+
+  )
+#+end_src
+
 * User interface
 :PROPERTIES:
 :ID:       9BC5F95A-DE45-4F06-BB2B-A3EA810FA11F
@@ -609,7 +652,9 @@ Note:
 
 #+begin_src emacs-lisp
 (use-package nerd-icons-completion
-  :hook (marginalia-mode . nerd-icons-completion-marginalia-setup))
+  :hook (marginalia-mode . nerd-icons-completion-marginalia-setup)
+  :init
+  (nerd-icons-completion-mode))
 #+end_src
 
 ** COMMENT dashboard
@@ -901,50 +946,49 @@ Note:
   )
 #+end_src
 
-* COMMENT Crafted modules
-** eglot
+** helpful
 
 #+begin_src emacs-lisp
-(use-package eglot
-  :preface
-  (defun crafted-ide--add-eglot-hooks (mode-list)
-    "Add `eglot-ensure' to modes in MODE-LIST.
-
-The mode must be loaded, i.e. found with `fboundp'.  A mode which
-is not loaded will not have a hook added, in which case add it
-manually with something like this:
-
-`(add-hook 'some-mode-hook #'eglot-ensure)'"
-    (dolist (mode-def mode-list)
-      (let ((mode (if (listp mode-def) (car mode-def) mode-def)))
-        (cond
-         ((listp mode) (crafted-ide--add-eglot-hooks mode))
-         (t
-          (when (and (fboundp mode)
-                     (not (eq 'clojure-mode mode))  ; prefer cider
-                     (not (eq 'lisp-mode mode))     ; prefer sly/slime
-                     (not (eq 'scheme-mode mode))   ; prefer geiser
-                     )
-            (let ((hook-name (concat (symbol-name mode) "-hook")))
-              (message (concat "adding eglot to " hook-name))
-              (add-hook (intern hook-name) #'eglot-ensure))))))))
-  (defun crafted-tree-sitter-load (lang-symbol)
-    "Setup tree-sitter for a language.
-
-This must be called in the user's configuration to configure
-tree-sitter for LANG-SYMBOL.
-
-Example: `(crafted-tree-sitter-load 'python)'"
-    (tree-sitter-require lang-symbol)
-    (let ((mode-hook-name
-           (intern (concat (symbol-name lang-symbol) "-mode-hook"))))
-      (add-hook mode-hook-name #'tree-sitter-mode)))
+(use-package helpful
+  :bind
+  (([remap describe-function] . helpful-callable)
+   ([remap describe-command]  . helpful-command)
+   ([remap describe-variable] . helpful-variable)
+   ([remap describe-key]      . helpful-key)
+   ([remap describe-symbol]   . helpful-symbol))
   :config
-  ;; add eglot to existing programming modes when eglot is loaded.
-  (crafted-ide--add-eglot-hooks eglot-server-programs)
-  (customize-set-variable 'eglot-autoshutdown t)
+  ;; hotfix, maybe solved?
+  (defun helpful--autoloaded-p (sym buf)
+    "Return non-nil if function SYM is autoloaded."
+    (-when-let (file-name (buffer-file-name buf))
+      (setq file-name (s-chop-suffix ".gz" file-name))
+      (condition-case nil
+          (help-fns--autoloaded-p sym file-name)
+                                        ; new in Emacs 29.0.50
+                                        ; see https://github.com/Wilfred/helpful/pull/283
+        (error (help-fns--autoloaded-p sym)))))
   )
+#+end_src
 
+** centaur tabs
+
+#+begin_src emacs-lisp
+(use-package centaur-tabs
+  :hook
+  (emacs-startup . centaur-tabs-mode)
+  :init
+  (setq centaur-tabs-set-icons t)
+  (setq centaur-tabs-set-modified-marker t
+        centaur-tabs-modified-marker "M"
+        centaur-tabs-cycle-scope 'tabs)
+  (setq centaur-tabs-set-close-button nil)
+  (setq centaur-tabs-enable-ido-completion nil)
+  :config
+  (centaur-tabs-mode t)
+  (define-key evil-normal-state-map "gt" 'centaur-tabs-forward)
+  (define-key evil-normal-state-map "gT" 'centaur-tabs-backward)
+  ;; (centaur-tabs-group-by-projectile-project)
+  )
 #+end_src
 
 * Evil
@@ -965,6 +1009,7 @@ Example: `(crafted-tree-sitter-load 'python)'"
   (evil-auto-indent nil)
   (evil-want-Y-yank-to-eol t)
   (evil-want-C-i-jump t)
+  (evil-undo-system 'undo-redo)
   :init
   (defun my/save-excursion-before-indenting (origin-fn &rest args)
     (save-excursion (apply origin-fn args)))
@@ -990,6 +1035,9 @@ Example: `(crafted-tree-sitter-load 'python)'"
   ;; unbind C-p so consult can use it
   (define-key evil-normal-state-map (kbd "C-p") nil)
   (define-key evil-insert-state-map (kbd "C-p") nil)
+  ;; unbind C-k so we can use it when completing
+  (define-key evil-normal-state-map (kbd "C-k") nil)
+  (define-key evil-insert-state-map (kbd "C-k") nil)
   (with-eval-after-load 'evil-maps
     (define-key evil-motion-state-map (kbd "SPC") nil)
     (define-key evil-motion-state-map (kbd "RET") nil)
@@ -1356,6 +1404,103 @@ Keybindings:
   )
 #+END_SRC
 
+** hydra and windows-hydra
+
+#+begin_src emacs-lisp
+(use-package hydra
+  :bind
+  ("<leader>ww" . 'evil-windows-hydra/body)
+  :config
+  (defhydra evil-windows-hydra (:hint nil
+                                      ;; :pre (smerge-mode 1)
+                                      ;; :post (smerge-auto-leave)
+                                      )
+    "
+ [_h_] ⇢⇠ decrease width [_l_] ⇠⇢ increase width
+ [_j_] decrease height [_k_] increase height
+│ [_q_] quit"
+    ("h" evil-window-decrease-width)
+    ("l" evil-window-increase-width)
+    ("j" evil-window-decrease-height)
+    ("k" evil-window-increase-height)
+    ("q" nil :color blue)))
+#+end_src
+
+** Global keybindings
+:PROPERTIES:
+:ID:       07C0EE37-AD32-47E3-B859-8F6BDF48A45E
+:END:
+
+#+begin_src emacs-lisp
+(use-package emacs
+  :init
+  (define-key emacs-lisp-mode-map (kbd "<normal-state> gr") nil)
+  (define-key global-map (kbd "<normal-state> gt") nil)
+  (define-key global-map (kbd "<normal-state> gT") nil)
+  (define-key global-map (kbd "C-j") nil)
+  (define-key global-map (kbd "C-k") nil)
+  )
+
+(use-package evil
+  :config
+  (evil-define-key 'normal 'global
+    (kbd "<leader>SPC") 'execute-extended-command
+    (kbd "<leader>R") 'restart-emacs
+    (kbd "<leader>;") 'eval-expression
+    ;; previous buffer
+    (kbd "<leader>`") '(lambda () (interactive) (switch-to-buffer (other-buffer (current-buffer) 1)))
+    (kbd "<leader>bd")  'kill-current-buffer
+    (kbd "<leader>br")  'revert-buffer
+    ;; delete file
+    (kbd "<leader>fD")  '(lambda () (interactive) (delete-file (buffer-file-name)))
+    (kbd "<leader>ff")  'find-file
+    (kbd "<leader>fR")  'rename-visited-file
+    (kbd "<leader>fs")  'save-buffer
+    (kbd "<leader>he")  'view-echo-area-messages
+    (kbd "<leader>hl")  'view-lossage
+    (kbd "<leader>hL")  'find-library
+    (kbd "<leader>hp")  'describe-package
+    (kbd "<leader>hv")  'describe-variable
+    (kbd "<leader>hf")  'describe-function
+    (kbd "<leader>hk")  'describe-key
+    (kbd "<leader>hK")  'describe-keymap
+    ;; lisp
+    (kbd "<leader>lr")  'raise-sexp
+    (kbd "<leader>lb")  'sp-forward-barf-sexp
+    (kbd "<leader>ls")  'sp-forward-slurp-sexp
+    (kbd "<leader>td")  'toggle-debug-on-error
+    (kbd "<leader>tf")  'auto-fill-mode
+    (kbd "<leader>tl")  'display-line-numbers-mode
+    ;; toggle wrapped lines
+    (kbd "<leader>tw")  '(lambda () (interactive) (toggle-truncate-lines))
+    (kbd "<leader>tm")  'toggle-frame-maximized
+    (kbd "<leader>u")  'universal-argument
+    (kbd "<leader>wd")  'delete-window
+    (kbd "<leader>wh")  'windmove-left
+    (kbd "<leader>wl")  'windmove-right
+    (kbd "<leader>wk")  'windmove-up
+    (kbd "<leader>wj")  'windmove-down
+    (kbd "<leader>wm")  'delete-other-windows
+    (kbd "<leader>wr")  'winner-redo
+    (kbd "<leader>ws")  'evil-window-split
+    (kbd "<leader>wu")  'winner-undo
+    (kbd "<leader>wv")  'evil-window-vsplit
+    (kbd "<leader>w=")  'balance-windows-area)
+  (evil-define-key 'insert 'global
+    (kbd "<leader>SPC") 'execute-extended-command
+    (kbd "M-<tab>") 'complete-symbol)
+  (evil-define-key 'visual 'global
+    (kbd "<leader>SPC") 'execute-extended-command)
+  ;; dired
+  (evil-define-key 'normal dired-mode-map
+    (kbd "SPC") 'evil-send-leader
+    (kbd "h") 'dired-up-directory
+    (kbd "l") 'dired-find-file)
+  (evil-define-key 'normal help-mode-map
+    (kbd "SPC") 'evil-send-leader)
+  )
+#+end_src 
+
 * GPT interface
 :PROPERTIES:
 :ID:       C36F8C53-5CA7-4092-8DBF-9E2654A2BC5F
@@ -1717,7 +1862,8 @@ NOTE:
          ("ESC" . 'transient-quit-one))
    (:map magit-mode-map
          ("<normal-state> zz" . 'evil-scroll-line-to-center)
-         ("<visual-state> zz" . 'evil-scroll-line-to-center)))
+         ("<visual-state> zz" . 'evil-scroll-line-to-center))
+   )
   :custom
   (magit-display-buffer-function #'magit-display-buffer-same-window-except-diff-v1)
   (magit-log-arguments '("--graph" "--decorate" "--color"))
@@ -1846,6 +1992,7 @@ We can avoid evaluation of code with:
         ("<visual-state><localleader>e" . 'eros-eval-last-sexp)
         ("<localleader>E" . 'org-export-dispatch)
         ("TAB" . nil)
+        ("C-j" . nil)
         )
   :custom
   (org-src-preserve-indentation t)
@@ -1888,7 +2035,7 @@ We can avoid evaluation of code with:
   ;; Only fold the current tree, rather than recursively
   (add-hook 'org-tab-first-hook #'+org-cycle-only-current-subtree-h)
   (add-hook 'org-mode-hook #'org-indent-mode)
-)
+  )
 #+end_src
 
 ** use org-id in links
@@ -2147,7 +2294,7 @@ NOTE:
     (consult-notes-denote-mode)))
 #+end_src
 
-** corfu + kind icon
+** COMMENT corfu + kind icon
 
 #+begin_src emacs-lisp
 (use-package corfu
@@ -2159,22 +2306,20 @@ NOTE:
                                corfu-auto nil)
 		   (corfu-mode)))
   :bind
+  ("<insert-state> C-j" . nil)
+  ("<leader>tc" . (lambda () (interactive) (corfu-mode)))
   (:map corfu-map
         ("<insert-state><escape>" . 'corfu-quit)
         ("<insert-state> RET" . 'corfu-complete)
         ("<insert-state> C-j" . 'corfu-next)
         ("<insert-state> C-k" . 'corfu-previous)
         )
-  ("<leader>tc" . (lambda () (interactive) (corfu-mode)))
   :custom
   (corfu-min-width 80)
   ;; Always have the same width
   (corfu-max-width corfu-min-width)
   ;; (corfu-auto nil)
   (tab-always-indent 'complete)
-  :config
-  (add-hook 'eshell-mode-hook
-            )
   )
 
 (use-package kind-icon
@@ -2187,6 +2332,18 @@ NOTE:
     (require 'kind-icon)
     (add-to-list 'corfu-margin-formatters #'kind-icon-margin-formatter)
     (add-hook 'modus-themes-after-load-theme-hook #'(lambda () (interactive) (kind-icon-reset-cache)))))
+#+end_src
+
+** COMMENT kind icon
+
+#+begin_src emacs-lisp
+(use-package kind-icon
+  :config
+  (add-hook 'my-completion-ui-mode-hook
+   	    (lambda ()
+   	      (setq completion-in-region-function
+   		    (kind-icon-enhance-completion
+   		     completion-in-region-function)))))
 #+end_src
 
 ** embark
@@ -2255,8 +2412,7 @@ NOTE:
   :hook
   (dired-mode . denote-dired-mode)
   :bind
-  ("<leader>nn" . (lambda () (interactive)
-                    (tabspaces-switch-or-create-workspace "denote") (call-interactively 'denote-open-or-create)))
+  
   ("<leader>nk" . 'denote-keywords-add)
   ("<leader>nK" . 'denote-keywords-remove)
   ("<leader>nr" . 'denote-rename-file)
@@ -2664,28 +2820,6 @@ any directory proferred by `consult-dir'."
   (flymake-fringe-indicator-position 'right-fringe))
 #+end_src
 
-** hydra and windows-hydra
-
-#+begin_src emacs-lisp
-(use-package hydra
-  :bind
-  ("<leader>ww" . 'evil-windows-hydra/body)
-  :config
-  (defhydra evil-windows-hydra (:hint nil
-                                      ;; :pre (smerge-mode 1)
-                                      ;; :post (smerge-auto-leave)
-                                      )
-    "
- [_h_] ⇢⇠ decrease width [_l_] ⇠⇢ increase width
- [_j_] decrease height [_k_] increase height
-│ [_q_] quit"
-    ("h" evil-window-decrease-width)
-    ("l" evil-window-increase-width)
-    ("j" evil-window-decrease-height)
-    ("k" evil-window-increase-height)
-    ("q" nil :color blue)))
-#+end_src
-
 ** persistent scratch
 
 #+begin_src emacs-lisp
@@ -2711,6 +2845,7 @@ any directory proferred by `consult-dir'."
   :ensure nil
   :bind
   ("<leader>pf" . 'project-find-file)
+  ("<leader>pb" . 'project-switch-to-buffer)
   :init
   (setq project-vc-extra-root-markers '("pyproject.toml" ".project"))
   (setq project-vc-ignores '(".idea" ".vscode" ".direnv"))
@@ -2755,7 +2890,20 @@ any directory proferred by `consult-dir'."
   ("<leader>wf" . 'rotate-frame))
 #+end_src
 
-** tabspaces
+** tab-bar
+
+#+begin_src emacs-lisp
+(use-package tab-bar
+  :ensure nil
+  :custom
+  (tab-bar-show nil)
+  :bind
+  ("<leader>TAB h" . 'tab-bar-switch-to-prev-tab)
+  ("<leader>TAB l" . 'tab-bar-switch-to-next-tab)
+  )
+#+end_src
+
+** COMMENT tabspaces
 
 #+begin_src emacs-lisp
 (use-package tabspaces
@@ -2767,8 +2915,6 @@ any directory proferred by `consult-dir'."
   ("<leader>TAB n" . 'tabspaces-project-switch-project-open-file)
   ("<leader>TAB TAB" . 'tabspaces-switch-or-create-workspace)
   ("<leader>TAB d" . 'tabspaces-kill-buffers-close-workspace)
-  ("<leader>TAB h" . 'tab-bar-switch-to-prev-tab)
-  ("<leader>TAB l" . 'tab-bar-switch-to-next-tab)
   ("<leader>oc" . (lambda () (interactive)
                          (tabspaces-switch-or-create-workspace "config")
                          (find-file (concat lc/config-directory "/readme.org"))))
@@ -2813,22 +2959,89 @@ any directory proferred by `consult-dir'."
     (add-to-list 'consult-buffer-sources 'consult--source-workspace)))
 #+end_src
 
-** tree-sitter + treesit-auto
-
-To build grammar:
-- =git clone https://github.com/tree-sitter/tree-sitter-javascript=
-- =./build.sh python=
-- =cp dist/libtree-sitter-python.dylib ~/git/crafted-emacs/tree-sitter/=
+** perspective
 
 #+begin_src emacs-lisp
-(use-package treesit-auto
-  :commands (global-treesit-auto-mode)
-  :when (and (member "TREE_SITTER" (split-string system-configuration-features))
-             (executable-find "tree-sitter"))
+(use-package perspective
+  :commands (persp-new persp-switch persp-state-save)
+  :bind
+  ("<leader>pp" . 'lc/switch-or-create-project)
+  ("<leader>TAB m" . (lambda () (interactive) (persp-switch "main")))
+  ("<leader>TAB d" . (lambda () (interactive) (persp-kill (persp-current-name))))
+  ("<leader>nn" . (lambda () (interactive)
+                    (project--ensure-read-project-list)
+                    (lc/switch-or-create-project "denote")
+                    (call-interactively 'denote-open-or-create)))
+  ("<leader>oc" . (lambda ()
+                    (interactive)
+                    (project--ensure-read-project-list)
+                    (lc/switch-or-create-project "~/.config/emacs")))
+  ;; (lc/leader-keys
+  ;;  "<leader>TAB" '(:ignore true :wk "tab")
+  ;;  "TAB TAB" 'persp-switch
+  ;;  "TAB `" 'persp-switch-last
+  ;;  "TAB d" 'persp-kill
+  ;;  "TAB h" 'persp-prev
+  ;;  "TAB l" 'persp-next
+  ;;  "TAB x" '((lambda () (interactive) (persp-kill (persp-current-name))) :wk "kill current")
+  ;;  "TAB X" '((lambda () (interactive) (persp-kill (persp-names))) :wk "kill all")
+  ;;  "TAB m" '(lc/main-tab :wk "main"))
+  :preface
+  (defun lc/switch-or-create-project (&optional project)
+    ;; Select project from completing-read
+    (interactive
+     (list (project-prompt-project-dir)))
+    ;; Set vars
+    (let* ((project-switch-commands #'project-find-file)
+           (pname (file-name-nondirectory (directory-file-name project))))
+      ;; 1. if tab exists, switch
+      (if (member pname (persp-names))
+          (persp-switch pname)
+        (progn
+          (persp-switch pname)
+          (let ((default-directory project))
+            (project-find-file))))
+      ))
   :init
-  (setq treesit-font-lock-level 3)
-  (require 'treesit)
-  (global-treesit-auto-mode))
+  (setq persp-state-default-file (expand-file-name ".persp" user-emacs-directory))
+  (setq persp-mode-prefix-key (kbd "<leader> TAB"))
+  
+  (defun lc/is-persp-empty? ()
+    (seq-filter
+     ;; filter away buffers which should be hidden
+     (lambda (buffer-name) (not (string-prefix-p "*" buffer-name)))
+     ;; get list of buffer names in current perspective
+     (mapcar (lambda (elm) (buffer-name (car elm)))
+             (centaur-tabs-view (centaur-tabs-current-tabset)))
+     ))
+  (persp-mode))
+#+end_src
+
+** perspective-tabs
+
+#+begin_src emacs-lisp
+(use-package perspective-tabs
+  :vc (:fetcher "sourcehut" :repo "woozong/perspective-tabs")
+  :after (perspective)
+  :bind
+  ("<leader>TAB TAB" . 'perspective-tabs-new)
+  :init
+  (perspective-tabs-mode +1))
+#+end_src
+
+** COMMENT project tab groups
+
+#+begin_src emacs-lisp
+(use-package project-tab-groups
+  :bind
+  ("<leader>pp" . 'project-switch-project)
+  ("<leader>TAB d" . 'project-kill-buffers)
+  ("<leader>TAB h" . 'tab-bar-switch-to-prev-tab)
+  ("<leader>TAB l" . 'tab-bar-switch-to-next-tab)
+  
+
+  :init
+  (project-tab-groups-mode 1))
 #+end_src
 
 ** treemacs
@@ -2853,6 +3066,36 @@ To build grammar:
   (treemacs-fringe-indicator-mode 'always)
   (when treemacs-python-executable
     (treemacs-git-commit-diff-mode t)))
+#+end_src
+
+** tree-sitter + treesit-auto
+
+To build grammar:
+- =git clone https://github.com/tree-sitter/tree-sitter-javascript=
+- =./build.sh python=
+- =cp dist/libtree-sitter-python.dylib ~/git/crafted-emacs/tree-sitter/=
+
+#+begin_src emacs-lisp
+(use-package treesit-auto
+  :commands (global-treesit-auto-mode)
+  :when (and (member "TREE_SITTER" (split-string system-configuration-features))
+             (executable-find "tree-sitter"))
+  :preface
+  (defun crafted-tree-sitter-load (lang-symbol)
+    "Setup tree-sitter for a language.
+
+This must be called in the user's configuration to configure
+tree-sitter for LANG-SYMBOL.
+
+Example: `(crafted-tree-sitter-load 'python)'"
+    (tree-sitter-require lang-symbol)
+    (let ((mode-hook-name
+           (intern (concat (symbol-name lang-symbol) "-mode-hook"))))
+      (add-hook mode-hook-name #'tree-sitter-mode)))
+  :init
+  (setq treesit-font-lock-level 3)
+  (require 'treesit)
+  (global-treesit-auto-mode))
 #+end_src
 
 ** vterm and vterm-toggle
@@ -2901,22 +3144,68 @@ To build grammar:
 :PROPERTIES:
 :ID:       F10EA50B-0AB5-45EE-B2D2-1780CA5C0E00
 :END:
-** COMMENT eglot
+** eglot
 
 #+begin_src emacs-lisp
 (use-package eglot
+  :commands (eglot eglot-ensure)
+  :hook
+  (python-ts-mode . eglot-ensure)
   :custom
+  (eglot-autoshutdown t)
   (eglot-workspace-configuration
    '(:pyright (:useLibraryCodeForTypes t :openFilesOnly :json-false))
    (read-process-output-max (* 1024 1024))
-   (eglot-sync-connect 0)
-   :config
-   (add-to-list 'eglot-server-programs
-                '(python-mode . ("pyright-langserver" "--stdio")))
-   )
+   (eglot-sync-connect 0))
+  )
 #+end_src
 
-** lsp-mode
+** dape
+
+#+begin_src emacs-lisp
+(use-package dape
+  :vc (:fetcher "github" :repo "svaante/dape")
+  :demand
+  :init
+  (setq dape--debug-on '(io info error std-server))
+  :config
+  (add-to-list 'dape-configs
+               `(api
+		 modes (python-ts-mode python-mode)
+		 command "/Users/cambiaghiluca/git/aa-api/.direnv/python-3.11/bin/python"
+		 command-args ("-m" "debugpy.adapter")
+		 :type "executable"
+		 :request "launch"
+		 :cwd dape-cwd-fn
+		 ;; :cwd "/Users/cambiaghiluca/aa-api/"
+		 :program dape-find-file-buffer-default
+		 ;; :program "/Users/cambiaghiluca/git/aa-api/api/__main__.py"
+		 :args ["--debug"]
+		 ))
+  ;; Add inline variable hints, this feature is highly experimental
+  ;; (setq dape-inline-variables t)
+
+  ;; To remove info buffer on startup
+  ;; (remove-hook 'dape-on-start-hooks 'dape-info)
+
+  ;; To remove repl buffer on startup
+  ;; (remove-hook 'dape-on-start-hooks 'dape-repl)
+
+  ;; By default dape uses gdb keybinding prefix
+  ;; (setq dape-key-prefix "\C-x\C-a")
+
+  ;; Use n for next etc. in REPL
+  ;; (setq dape-repl-use-shorthand t)
+
+  ;; Kill compile buffer on build success
+  ;; (add-hook 'dape-compile-compile-hooks 'kill-buffer)
+
+  ;; Projectile users
+  ;; (setq dape-cwd-fn 'projectile-project-root)
+  )
+#+end_src
+
+** COMMENT lsp-mode
 
 #+begin_src emacs-lisp
 (use-package lsp-mode
@@ -2952,7 +3241,7 @@ To build grammar:
   )
 #+end_src
 
-** lsp-ui
+** COMMENT lsp-ui
 
 #+begin_src emacs-lisp
 (use-package lsp-ui
@@ -3185,7 +3474,7 @@ layout python /usr/local/homebrew/bin/python3.9
   (python-ts-mode org-jupyter-mode))
 #+end_src
 
-*** lsp-pyright
+*** COMMENT lsp-pyright
 
 #+begin_src emacs-lisp
 (use-package lsp-pyright
@@ -3225,7 +3514,7 @@ layout python /usr/local/homebrew/bin/python3.9
     ))
                             #+end_src
 
-*** dap-mode
+*** COMMENT dap-mode
 :PROPERTIES:
 :ID:       696CB40C-C156-4200-8765-2A5195019370
 :END:
@@ -3591,7 +3880,7 @@ Notes:
   (defun lc/init-jupyter ()
     (interactive)
     ;; only try to load in org-mode
-    (unless (member '(jupyter . t) org-babel-load-languages)
+    (unless (and (fboundp 'org-babel-load-languages) (member '(jupyter . t) org-babel-load-languages))
         ;; only load if jupyter is available
         (if (executable-find "jupyter")
             (let ((warning-minimum-level :error))
@@ -3682,74 +3971,7 @@ Notes:
 (use-package yaml-mode)
 #+end_src
 
-* Global keybindings
-:PROPERTIES:
-:ID:       07C0EE37-AD32-47E3-B859-8F6BDF48A45E
-:END:
-
-#+begin_src emacs-lisp
-(use-package evil
-  :config
-  (evil-define-key 'normal 'global
-    (kbd "<leader>SPC") 'execute-extended-command
-    (kbd "<leader>R") 'restart-emacs
-    (kbd "<leader>;") 'eval-expression
-    ;; previous buffer
-    (kbd "<leader>`") '(lambda () (interactive) (switch-to-buffer (other-buffer (current-buffer) 1)))
-    (kbd "<leader>bd")  'kill-current-buffer
-    (kbd "<leader>br")  'revert-buffer
-    ;; delete file
-    (kbd "<leader>fD")  '(lambda () (interactive) (delete-file (buffer-file-name)))
-    (kbd "<leader>ff")  'find-file
-    (kbd "<leader>fR")  'rename-visited-file
-    (kbd "<leader>fs")  'save-buffer
-    (kbd "<leader>he")  'view-echo-area-messages
-    (kbd "<leader>hf")  'describe-function
-    (kbd "<leader>hk")  'describe-key
-    (kbd "<leader>hK")  'describe-keymap
-    (kbd "<leader>hl")  'view-lossage
-    (kbd "<leader>hL")  'find-library
-    (kbd "<leader>hp")  'describe-package
-    (kbd "<leader>hv")  'describe-variable
-    ;; lisp
-    (kbd "<leader>lr")  'raise-sexp
-    (kbd "<leader>lb")  'sp-forward-barf-sexp
-    (kbd "<leader>ls")  'sp-forward-slurp-sexp
-    (kbd "<leader>td")  'toggle-debug-on-error
-    (kbd "<leader>tf")  'auto-fill-mode
-    (kbd "<leader>tl")  'display-line-numbers-mode
-    ;; toggle wrapped lines
-    (kbd "<leader>tw")  '(lambda () (interactive) (toggle-truncate-lines))
-    (kbd "<leader>tm")  'toggle-frame-maximized
-    (kbd "<leader>u")  'universal-argument
-    (kbd "<leader>wd")  'delete-window
-    (kbd "<leader>wh")  'windmove-left
-    (kbd "<leader>wl")  'windmove-right
-    (kbd "<leader>wk")  'windmove-up
-    (kbd "<leader>wj")  'windmove-down
-    (kbd "<leader>wm")  'delete-other-windows
-    (kbd "<leader>wr")  'winner-redo
-    (kbd "<leader>ws")  'evil-window-split
-    (kbd "<leader>wu")  'winner-undo
-    (kbd "<leader>wv")  'evil-window-vsplit
-    (kbd "<leader>w=")  'balance-windows-area)
-  (define-key emacs-lisp-mode-map (kbd "<normal-state> gr") nil)
-  (evil-define-key 'insert 'global
-    (kbd "<leader>SPC") 'execute-extended-command
-    (kbd "M-<tab>") 'complete-symbol)
-  (evil-define-key 'visual 'global
-    (kbd "<leader>SPC") 'execute-extended-command)
-  ;; dired
-  (evil-define-key 'normal dired-mode-map
-    (kbd "SPC") 'evil-send-leader
-    (kbd "h") 'dired-up-directory
-    (kbd "l") 'dired-find-file)
-  (evil-define-key 'normal help-mode-map
-    (kbd "SPC") 'evil-send-leader)
-  )
-#+end_src 
-
 * To be fixed
 ** TODO update README
-** TODO review TAB and completion buffer
 ** TODO fix welcome-dashboard
+** TODO fix centaur tabs groups
