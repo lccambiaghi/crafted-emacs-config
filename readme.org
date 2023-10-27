@@ -617,28 +617,6 @@ Use `mct-sort-sort-by-alpha-length' if no history is available."
 )
 #+end_src
 
-** COMMENT all-the-icons completion
-
-#+begin_src emacs-lisp
-(use-package all-the-icons-completion
-  :if (display-graphic-p)
-  :after (marginalia all-the-icons)
-  :hook (marginalia-mode . all-the-icons-completion-marginalia-setup)
-  :init
-  (all-the-icons-completion-mode))
-#+end_src
-
-** COMMENT all-the-icons-dired
-
-#+begin_src emacs-lisp
-(use-package all-the-icons-dired
-  :if (display-graphic-p)
-  :hook
-  (dired-mode . (lambda () (interactive)
-                  (unless (file-remote-p default-directory)
-                    (all-the-icons-dired-mode)))))
-#+end_src
-
 ** nerd-icons-dired
 
 #+begin_src emacs-lisp
@@ -653,37 +631,6 @@ Use `mct-sort-sort-by-alpha-length' if no history is available."
   :hook (marginalia-mode . nerd-icons-completion-marginalia-setup)
   :init
   (nerd-icons-completion-mode))
-#+end_src
-
-** COMMENT dashboard
-
-#+begin_src emacs-lisp
-(use-package dashboard
-  :bind
-  ("<leader>TAB H" . 'lc/go-to-dashboard)
-  :preface
-  (defun linum-mode (_) )
-  (defun lc/go-to-dashboard ()
-    (interactive)
-    (kill-matching-buffers dashboard-buffer-name nil 'no-ask)
-    (tabspaces-switch-or-create-workspace "Home")
-    (dashboard-insert-startupify-lists)
-    (switch-to-buffer dashboard-buffer-name))
-  :init
-  (setq dashboard-set-heading-icons t)
-  (setq dashboard-set-file-icons t)
-  (setq dashboard-items
-        '((agenda . 10)
-          ;; (bookmarks . 5)
-          (projects . 10)
-          ;; (recents  . 5)
-          ;; (registers . 5)
-          ))
-  (setq dashboard-set-footer nil)
-  (setq dashboard-filter-agenda-entry 'dashboard-no-filter-agenda)
-  (setq dashboard-projects-backend 'project-el)
-  ;; (setq dashboard-match-agenda-entry nil)
-  (dashboard-setup-startup-hook))
 #+end_src
 
 ** welcome-dashboard
@@ -757,41 +704,6 @@ Use `mct-sort-sort-by-alpha-length' if no history is available."
   (doom-modeline-workspace-name nil)
   ;; (doom-modeline-project-detection 'projectile)
   ;; (doom-modeline-buffer-file-name-style 'relative-to-project)
-  )
-#+end_src
-
-** COMMENT lambda line
-
-#+begin_src emacs-lisp
-(use-package lambda-line
-  :after (all-the-icons)
-  :if lc/use-lambda-line
-  :vc (:fetcher "github" :repo "lambda-emacs/lambda-line")
-  :custom
-  (lambda-line-icon-time t) ;; requires ClockFace font (see below)
-  (lambda-line-clockface-update-fontset "ClockFaceRect") ;; set clock icon
-  (lambda-line-position 'bottom) ;; Set position of status-line
-  (lambda-line-abbrev t) ;; abbreviate major modes
-  (lambda-line-hspace "  ")  ;; add some cushion
-  (lambda-line-prefix t) ;; use a prefix symbol
-  (lambda-line-prefix-padding nil) ;; no extra space for prefix
-  (lambda-line-status-invert nil)  ;; no invert colors
-  (lambda-line-gui-ro-symbol  " ⨂") ;; symbols
-  (lambda-line-gui-mod-symbol " ⬤")
-  (lambda-line-gui-rw-symbol  " ◯")
-  (lambda-line-space-top +.50)  ;; padding on top and bottom of line
-  (lambda-line-space-bottom -.50)
-  (lambda-line-symbol-position 0.1) ;; adjust the vertical placement of symbol
-  :init
-  ;; activate lambda-line
-  (lambda-line-mode)
-  ;; set divider line in footer
-  (when (eq lambda-line-position 'top)
-    (setq-default mode-line-format (list "%_"))
-    (setq mode-line-format (list "%_")))
-  (customize-set-variable 'flymake-mode-line-counter-format '("" flymake-mode-line-error-counter flymake-mode-line-warning-counter flymake-mode-line-note-counter ""))
-  (customize-set-variable 'flymake-mode-line-format '(" " flymake-mode-line-exception flymake-mode-line-counters))
-  (lambda-line-visual-bell-config)
   )
 #+end_src
 
@@ -873,30 +785,6 @@ Note:
 ;;   (add-to-list 'sideline-backends-right 'sideline-lsp)
 ;;   (setq sideline-lsp-update-mode 'line)
 ;; )
-#+end_src
-
-** COMMENT os1 theme
-
-#+begin_src emacs-lisp
-(use-package os1-theme
-  :vc (:fetcher "github" :repo "sashimacs/os1-theme")
-  :init
-  (use-package solarized-theme
-    :vc (:fetcher "github" :repo "bbatsov/solarized-emacs")
-    :demand
-    )
-  (setq lc/light-theme 'os1)
-  )
-#+end_src
-
-** COMMENT nordic night theme
-
-#+begin_src emacs-lisp
-(use-package nordic-night-theme
-  :vc (:fetcher "sourcehut" :repo "ashton314/nordic-night")
-  :init
-  (setq lc/dark-theme 'nordic-night)
-  )
 #+end_src
 
 ** lambda themes
@@ -1050,15 +938,15 @@ Note:
   :after evil
   :init
   (setq evil-collection-mode-list
-        '(arc-mode bm bookmark consult comint compile eldoc daemons
-                   debug diff-hl diff-mode dired dired-sidebar
-                   docker doc-view elisp-refs embark eldoc eshell
-                   eww elfeed flymake grep help helpful ibuffer
-                   imenu macrostep magit-sections magit magic-todos
-                   man markdown-mode mu4e notmuch org org-roam
-                   osx-dictionary pdf python replace rg ripgrep
-                   tab-bar term vertico vterm wdired wgrep which-key
-                   xref xwidget))
+        '(bm bookmark consult comint compile eldoc daemons
+             debug diff-hl diff-mode dired dired-sidebar
+             doc-view elisp-refs embark eldoc eshell
+             eww elfeed flymake grep help helpful ibuffer
+             imenu magit-sections magit magic-todos
+             man markdown-mode mu4e notmuch org org-roam
+             osx-dictionary pdf python replace rg ripgrep
+             tab-bar term vertico vterm wdired wgrep which-key
+             xref xwidget))
   (evil-collection-init)
   )
 #+end_src
@@ -1214,27 +1102,6 @@ Text objects:
     "Inserts a new heading, table cell or item above the current one."
     (interactive "p")
     (dotimes (_ count) (+org--insert-item 'above))))
-#+end_src
-
-** COMMENT evil nerd commenter
-
-#+begin_src emacs-lisp
-(use-package evil-nerd-commenter
-  :commands (evilnc-comment-operator evilnc-copy-and-comment-operator)
-  :after evil
-  :config
-  (define-key evil-normal-state-map "gc" 'evilnc-comment-operator)
-  (define-key evil-normal-state-map "gC" 'evilnc-copy-and-comment-operator)
-  (define-key evil-visual-state-map "gc" 'evilnc-comment-operator)
-  (define-key evil-visual-state-map "gC" 'evilnc-copy-and-comment-operator)
-  ;; :bind
-  ;; (:map evil-normal-state-map
-  ;;       ("gc" . 'evilnc-comment-operator)
-  ;;       ("gC" . 'evilnc-copy-and-comment-operator))
-  ;; (:map evil-visual-state-map
-  ;;       ("gc" . 'evilnc-comment-operator)
-  ;;       ("gC" . 'evilnc-copy-and-comment-operator))
-  )
 #+end_src
 
 ** evil-commentary
@@ -1827,6 +1694,21 @@ NOTE:
   )
 #+end_src
 
+** ellama
+
+#+begin_src emacs-lisp
+(use-package ellama
+  :commands
+  (ellama-chat)
+  ;; :init
+  ;; (setopt ellama-language "english")
+  ;; (require 'llm-ollama)
+  ;; (setopt ellama-provider
+  ;; 	  (make-llm-ollama
+  ;; 	   :chat-model "zephyr:7b-alpha-q5_K_M" :embedding-model "zephyr:7b-alpha-q5_K_M"))
+  )
+#+end_src
+
 * Git
 :PROPERTIES:
 :ID:       0F716E8A-CA57-4664-A33A-C991FB503993
@@ -2330,18 +2212,6 @@ NOTE:
     (require 'kind-icon)
     (add-to-list 'corfu-margin-formatters #'kind-icon-margin-formatter)
     (add-hook 'modus-themes-after-load-theme-hook #'(lambda () (interactive) (kind-icon-reset-cache)))))
-#+end_src
-
-** COMMENT kind icon
-
-#+begin_src emacs-lisp
-(use-package kind-icon
-  :config
-  (add-hook 'my-completion-ui-mode-hook
-   	    (lambda ()
-   	      (setq completion-in-region-function
-   		    (kind-icon-enhance-completion
-   		     completion-in-region-function)))))
 #+end_src
 
 ** embark
@@ -3026,21 +2896,6 @@ any directory proferred by `consult-dir'."
   (perspective-tabs-mode +1))
 #+end_src
 
-** COMMENT project tab groups
-
-#+begin_src emacs-lisp
-(use-package project-tab-groups
-  :bind
-  ("<leader>pp" . 'project-switch-project)
-  ("<leader>TAB d" . 'project-kill-buffers)
-  ("<leader>TAB h" . 'tab-bar-switch-to-prev-tab)
-  ("<leader>TAB l" . 'tab-bar-switch-to-next-tab)
-  
-
-  :init
-  (project-tab-groups-mode 1))
-#+end_src
-
 ** treemacs
 
 #+begin_src emacs-lisp
@@ -3099,16 +2954,16 @@ Example: `(crafted-tree-sitter-load 'python)'"
 
 #+begin_src emacs-lisp
 (use-package vterm
-  ;; :bind
-  ;; (:map vterm-mode-map
-  ;;       ("<insert-state> M-<left>" . (lambda () (interactive) (vterm-send-key (kbd "M-<left>"))))
-  ;;       ("<insert-state> M-<right>" . (lambda () (interactive) (vterm-send-key (kbd "M-<right>"))))
-  ;;       )
+  :bind
+  (:map vterm-mode-map
+        ("<insert-state> M-<left>" . 'evil-backward-word-begin)
+        ("<insert-state> M-<right>" . 'evil-forward-word-begin))
   :custom
   ;; (vterm-shell (executable-find "fish"))
   (vterm-shell (executable-find "zsh"))
   (vterm-max-scrollback 10000)
-  ;; :config
+  :config
+  (advice-add #'vterm--redraw :around (lambda (fun &rest args) (let ((cursor-type cursor-type)) (apply fun args))))
   ;; (define-key vterm-mode-map (kbd "M-<left>") nil)
   )
 
@@ -3235,6 +3090,180 @@ Example: `(crafted-tree-sitter-load 'python)'"
   (lsp-diagnostics-provider :none)
   :config
   (add-to-list 'lsp-language-id-configuration '(python-ts-mode . "python"))
+  )
+#+end_src
+
+** COMMENT lsp-pyright
+
+#+begin_src emacs-lisp
+(use-package lsp-pyright
+  :hook
+  (python-ts-mode . (lambda ()
+                        (require 'lsp-pyright)
+                        (lc/init-pyright)
+                        (lsp-deferred)
+                        (lsp-diagnostics-mode -1)
+                        ))
+  :custom
+  (lsp-pyright-typechecking-mode "basic")
+  (python-indent-guess-indent-offset nil)
+  :preface
+  (defun lc/init-pyright ()
+    (lsp-register-client
+     (make-lsp-client
+      :new-connection (lsp-stdio-connection (lambda ()
+                                              (cons (lsp-package-path 'pyright)
+                                                    lsp-pyright-langserver-command-args)))
+      ;; NOTE: only change is here, adding python-ts-mode
+      :major-modes '(python-mode python-ts-mode)
+      :server-id 'pyright
+      :multi-root lsp-pyright-multi-root
+      :priority 3
+      :initialized-fn (lambda (workspace)
+                        (with-lsp-workspace workspace
+                          ;; we send empty settings initially, LSP server will ask for the
+                          ;; configuration of each workspace folder later separately
+                          (lsp--set-configuration
+                           (make-hash-table :test 'equal))))
+      :download-server-fn (lambda (_client callback error-callback _update?)
+                            (lsp-package-ensure 'pyright callback error-callback))
+      :notification-handlers (lsp-ht ("pyright/beginProgress" 'lsp-pyright--begin-progress-callback)
+                                     ("pyright/reportProgress" 'lsp-pyright--report-progress-callback)
+                                     ("pyright/endProgress" 'lsp-pyright--end-progress-callback))))
+    ))
+                            #+end_src
+
+** COMMENT dap-mode
+:PROPERTIES:
+:ID:       696CB40C-C156-4200-8765-2A5195019370
+:END:
+
+#+begin_src emacs-lisp
+(use-package dap-mode
+  :hook
+  (;; (dap-mode . corfu-mode)
+   (dap-terminated . lc/hide-debug-windows)
+   ;; (dap-stopped  . lc/switch-to-output-buf)
+   ;; (dap-session-created . (lambda (_arg) (projectile-save-project-buffers)))
+   (dap-ui-repl-mode . (lambda () (setq-local truncate-lines t))))
+  :bind
+  (:map lsp-mode-map
+        ("<localleader>dd" . 'dap-debug)
+        ("<localleader>db" . 'dap-breakpoint-toggle)
+        ;; "d B" '(dap-ui-breakpoints-list :wk "breakpoint list")
+        ("<localleader>dc" . 'dap-continue)
+        ("<localleader>dn" . 'dap-next)
+        ("<localleader>de" . 'dap-eval-thing-at-point)
+        ("<localleader>di" . 'dap-step-in)
+        ("<localleader>dl" . 'dap-debug-last)
+        ("<localleader>dq" . 'dap-disconnect)
+        ("<localleader>dr" . 'dap-ui-repl)
+        ("<localleader>di" . 'lc/dap-inspect-df)
+        ;; templates
+        ("<localleader>dt" . (lambda () (interactive) (dap-debug dap-test-args)))
+        ("<localleader>ds" . (lambda () (interactive) (dap-debug dap-script-args))))
+  (:map dap-ui-repl-mode-map
+        ("<insert-state><up>" . 'comint-previous-input))
+  :preface
+  (defun lc/dap-inspect-df (dataframe)
+    "Save the df to csv and open the file with csv-mode"
+    (interactive (list (read-from-minibuffer "DataFrame: " (evil-find-symbol nil))))
+    (dap-eval (format  "%s.to_csv('%s', index=False)" dataframe lc/dap-temp-dataframe-path))
+    (sleep-for 1)
+    (find-file-other-window lc/dap-temp-dataframe-path))
+  ;; hide stdout window  when done
+  (defun lc/hide-debug-windows (session)
+    "Hide debug windows when all debug sessions are dead."
+    (unless (-filter 'dap--session-running (dap--get-sessions))
+      (lc/kill-output-buffer)))
+  (defun lc/dap-python--executable-find (orig-fun &rest args)
+    (executable-find "python"))
+  (defun lc/kill-output-buffer ()
+    "Go to output buffer."
+    (interactive)
+    (let ((win (display-buffer-in-side-window
+                (dap--debug-session-output-buffer (dap--cur-session-or-die))
+                `((side . bottom) (slot . 5) (window-width . 0.20)))))
+      (delete-window win)))
+  (defun lc/window-resize-to-percentage (percentage)
+    (interactive)
+    (window-resize nil (- (truncate (* percentage (frame-height))) (window-height))))
+  (defun lc/reset-dap-windows ()
+    (interactive)
+    ;; display sessions and repl
+    (seq-doseq (feature-start-stop dap-auto-configure-features)
+      (when-let
+          (start-stop (alist-get feature-start-stop
+                                 ;; <
+                                 dap-features->windows))
+        (funcall (car start-stop))))
+    ;; display output buffer
+    (save-excursion (dap-go-to-output-buffer t))
+    ;; resize window
+    (save-window-excursion
+      ;; switch to main window
+      (winum-select-window-1)
+      (lc/window-resize-to-percentage 0.66)))
+  (defun lc/switch-to-output-buf ()
+    (when-let* ((splits (split-string buffer-file-name "/"))
+                (bla (car (last splits))))
+      (when (string-equal bla "pytest.py")
+        (switch-to-buffer (dap--debug-session-output-buffer (dap--cur-session-or-die))))))
+  :init
+  (setq lc/dap-temp-dataframe-buffer  "*inspect-df*")
+  (setq lc/dap-temp-dataframe-path "~/tmp-inspect-df.csv")
+  ;; prevent minibuffer prompt about reloading from disk
+  (setq revert-without-query '("~/tmp-inspect-df.csv"))
+  ;; (setq dap-auto-configure-features '(locals repl))
+  (setq dap-auto-configure-features '(sessions repl))
+  (setq dap-python-debugger 'debugpy)
+  ;; show stdout
+  (setq dap-auto-show-output t)
+  (setq dap-output-window-min-height 10)
+  (setq dap-output-window-max-height 200)
+  (setq dap-overlays-use-overlays nil)
+  :config
+  ;; configure windows
+  (require 'dap-ui)
+  (setq dap-ui-buffer-configurations
+        '(("*dap-ui-sessions*"
+           (side . bottom) (slot . 1) (window-height . 0.33))
+          ("*debug-window*"
+           (side . bottom) (slot . 2) (window-height . 0.33))
+          ("*dap-ui-repl*"
+           (side . bottom) (slot . 3) (window-height . 0.33))))
+  (dap-ui-mode 1)
+  ;; python virtualenv
+  (require 'dap-python)
+  (advice-add 'dap-python--pyenv-executable-find :around #'lc/dap-python--executable-find)
+  ;; debug templates
+  (defvar dap-script-args (list :type "python"
+                                :args []
+                                :cwd "${workspaceFolder}"
+                                :justMyCode :json-false
+                                :request "launch"
+                                :debugger 'debugpy
+                                :name "dap-debug-script"))
+  (defvar dap-test-args (list :type "python-test-at-point"
+                              :args ""
+                              :justMyCode :json-false
+                              ;; :cwd "${workspaceFolder}"
+                              :request "launch"
+                              :module "pytest"
+                              :debugger 'debugpy
+                              :name "dap-debug-test-at-point"))
+  (defvar ft-api (list
+                  :name "api"
+                  :type "python"
+                  :request "launch"
+                  :program (expand-file-name "~/git/ft-api/ft_api/__main__.py")
+                  ;; :env '(("NO_JSON_LOG" . "true"))
+                  ;; :args ["--debug"]
+                  ))
+
+  (dap-register-debug-template "dap-debug-script" dap-script-args)
+  (dap-register-debug-template "dap-debug-test-at-point" dap-test-args)
+  (dap-register-debug-template "ft-api" ft-api)
   )
 #+end_src
 
@@ -3469,180 +3498,6 @@ layout python /usr/local/homebrew/bin/python3.9
   (envrc-propagate-environment)
   :hook
   (python-ts-mode org-jupyter-mode))
-#+end_src
-
-*** COMMENT lsp-pyright
-
-#+begin_src emacs-lisp
-(use-package lsp-pyright
-  :hook
-  (python-ts-mode . (lambda ()
-                        (require 'lsp-pyright)
-                        (lc/init-pyright)
-                        (lsp-deferred)
-                        (lsp-diagnostics-mode -1)
-                        ))
-  :custom
-  (lsp-pyright-typechecking-mode "basic")
-  (python-indent-guess-indent-offset nil)
-  :preface
-  (defun lc/init-pyright ()
-    (lsp-register-client
-     (make-lsp-client
-      :new-connection (lsp-stdio-connection (lambda ()
-                                              (cons (lsp-package-path 'pyright)
-                                                    lsp-pyright-langserver-command-args)))
-      ;; NOTE: only change is here, adding python-ts-mode
-      :major-modes '(python-mode python-ts-mode)
-      :server-id 'pyright
-      :multi-root lsp-pyright-multi-root
-      :priority 3
-      :initialized-fn (lambda (workspace)
-                        (with-lsp-workspace workspace
-                          ;; we send empty settings initially, LSP server will ask for the
-                          ;; configuration of each workspace folder later separately
-                          (lsp--set-configuration
-                           (make-hash-table :test 'equal))))
-      :download-server-fn (lambda (_client callback error-callback _update?)
-                            (lsp-package-ensure 'pyright callback error-callback))
-      :notification-handlers (lsp-ht ("pyright/beginProgress" 'lsp-pyright--begin-progress-callback)
-                                     ("pyright/reportProgress" 'lsp-pyright--report-progress-callback)
-                                     ("pyright/endProgress" 'lsp-pyright--end-progress-callback))))
-    ))
-                            #+end_src
-
-*** COMMENT dap-mode
-:PROPERTIES:
-:ID:       696CB40C-C156-4200-8765-2A5195019370
-:END:
-
-#+begin_src emacs-lisp
-(use-package dap-mode
-  :hook
-  (;; (dap-mode . corfu-mode)
-   (dap-terminated . lc/hide-debug-windows)
-   ;; (dap-stopped  . lc/switch-to-output-buf)
-   ;; (dap-session-created . (lambda (_arg) (projectile-save-project-buffers)))
-   (dap-ui-repl-mode . (lambda () (setq-local truncate-lines t))))
-  :bind
-  (:map lsp-mode-map
-        ("<localleader>dd" . 'dap-debug)
-        ("<localleader>db" . 'dap-breakpoint-toggle)
-        ;; "d B" '(dap-ui-breakpoints-list :wk "breakpoint list")
-        ("<localleader>dc" . 'dap-continue)
-        ("<localleader>dn" . 'dap-next)
-        ("<localleader>de" . 'dap-eval-thing-at-point)
-        ("<localleader>di" . 'dap-step-in)
-        ("<localleader>dl" . 'dap-debug-last)
-        ("<localleader>dq" . 'dap-disconnect)
-        ("<localleader>dr" . 'dap-ui-repl)
-        ("<localleader>di" . 'lc/dap-inspect-df)
-        ;; templates
-        ("<localleader>dt" . (lambda () (interactive) (dap-debug dap-test-args)))
-        ("<localleader>ds" . (lambda () (interactive) (dap-debug dap-script-args))))
-  (:map dap-ui-repl-mode-map
-        ("<insert-state><up>" . 'comint-previous-input))
-  :preface
-  (defun lc/dap-inspect-df (dataframe)
-    "Save the df to csv and open the file with csv-mode"
-    (interactive (list (read-from-minibuffer "DataFrame: " (evil-find-symbol nil))))
-    (dap-eval (format  "%s.to_csv('%s', index=False)" dataframe lc/dap-temp-dataframe-path))
-    (sleep-for 1)
-    (find-file-other-window lc/dap-temp-dataframe-path))
-  ;; hide stdout window  when done
-  (defun lc/hide-debug-windows (session)
-    "Hide debug windows when all debug sessions are dead."
-    (unless (-filter 'dap--session-running (dap--get-sessions))
-      (lc/kill-output-buffer)))
-  (defun lc/dap-python--executable-find (orig-fun &rest args)
-    (executable-find "python"))
-  (defun lc/kill-output-buffer ()
-    "Go to output buffer."
-    (interactive)
-    (let ((win (display-buffer-in-side-window
-                (dap--debug-session-output-buffer (dap--cur-session-or-die))
-                `((side . bottom) (slot . 5) (window-width . 0.20)))))
-      (delete-window win)))
-  (defun lc/window-resize-to-percentage (percentage)
-    (interactive)
-    (window-resize nil (- (truncate (* percentage (frame-height))) (window-height))))
-  (defun lc/reset-dap-windows ()
-    (interactive)
-    ;; display sessions and repl
-    (seq-doseq (feature-start-stop dap-auto-configure-features)
-      (when-let
-          (start-stop (alist-get feature-start-stop
-                                 ;; <
-                                 dap-features->windows))
-        (funcall (car start-stop))))
-    ;; display output buffer
-    (save-excursion (dap-go-to-output-buffer t))
-    ;; resize window
-    (save-window-excursion
-      ;; switch to main window
-      (winum-select-window-1)
-      (lc/window-resize-to-percentage 0.66)))
-  (defun lc/switch-to-output-buf ()
-    (when-let* ((splits (split-string buffer-file-name "/"))
-                (bla (car (last splits))))
-      (when (string-equal bla "pytest.py")
-        (switch-to-buffer (dap--debug-session-output-buffer (dap--cur-session-or-die))))))
-  :init
-  (setq lc/dap-temp-dataframe-buffer  "*inspect-df*")
-  (setq lc/dap-temp-dataframe-path "~/tmp-inspect-df.csv")
-  ;; prevent minibuffer prompt about reloading from disk
-  (setq revert-without-query '("~/tmp-inspect-df.csv"))
-  ;; (setq dap-auto-configure-features '(locals repl))
-  (setq dap-auto-configure-features '(sessions repl))
-  (setq dap-python-debugger 'debugpy)
-  ;; show stdout
-  (setq dap-auto-show-output t)
-  (setq dap-output-window-min-height 10)
-  (setq dap-output-window-max-height 200)
-  (setq dap-overlays-use-overlays nil)
-  :config
-  ;; configure windows
-  (require 'dap-ui)
-  (setq dap-ui-buffer-configurations
-        '(("*dap-ui-sessions*"
-           (side . bottom) (slot . 1) (window-height . 0.33))
-          ("*debug-window*"
-           (side . bottom) (slot . 2) (window-height . 0.33))
-          ("*dap-ui-repl*"
-           (side . bottom) (slot . 3) (window-height . 0.33))))
-  (dap-ui-mode 1)
-  ;; python virtualenv
-  (require 'dap-python)
-  (advice-add 'dap-python--pyenv-executable-find :around #'lc/dap-python--executable-find)
-  ;; debug templates
-  (defvar dap-script-args (list :type "python"
-                                :args []
-                                :cwd "${workspaceFolder}"
-                                :justMyCode :json-false
-                                :request "launch"
-                                :debugger 'debugpy
-                                :name "dap-debug-script"))
-  (defvar dap-test-args (list :type "python-test-at-point"
-                              :args ""
-                              :justMyCode :json-false
-                              ;; :cwd "${workspaceFolder}"
-                              :request "launch"
-                              :module "pytest"
-                              :debugger 'debugpy
-                              :name "dap-debug-test-at-point"))
-  (defvar ft-api (list
-                  :name "api"
-                  :type "python"
-                  :request "launch"
-                  :program (expand-file-name "~/git/ft-api/ft_api/__main__.py")
-                  ;; :env '(("NO_JSON_LOG" . "true"))
-                  ;; :args ["--debug"]
-                  ))
-
-  (dap-register-debug-template "dap-debug-script" dap-script-args)
-  (dap-register-debug-template "dap-debug-test-at-point" dap-test-args)
-  (dap-register-debug-template "ft-api" ft-api)
-  )
 #+end_src
 
 *** flymake-ruff
@@ -3923,7 +3778,7 @@ Notes:
   (setq stan-indentation-offset 2))
 #+end_src
 
-** Javascript
+** Javascript / typescript
 #+begin_src emacs-lisp
 (use-package rjsx-mode
   :hook (rjsx-mode . rainbow-delimiters-mode)

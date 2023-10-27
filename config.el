@@ -648,15 +648,15 @@ Use `mct-sort-sort-by-alpha-length' if no history is available."
   :after evil
   :init
   (setq evil-collection-mode-list
-        '(arc-mode bm bookmark consult comint compile eldoc daemons
-                   debug diff-hl diff-mode dired dired-sidebar
-                   docker doc-view elisp-refs embark eldoc eshell
-                   eww elfeed flymake grep help helpful ibuffer
-                   imenu macrostep magit-sections magit magic-todos
-                   man markdown-mode mu4e notmuch org org-roam
-                   osx-dictionary pdf python replace rg ripgrep
-                   tab-bar term vertico vterm wdired wgrep which-key
-                   xref xwidget))
+        '(bm bookmark consult comint compile eldoc daemons
+             debug diff-hl diff-mode dired dired-sidebar
+             doc-view elisp-refs embark eldoc eshell
+             eww elfeed flymake grep help helpful ibuffer
+             imenu magit-sections magit magic-todos
+             man markdown-mode mu4e notmuch org org-roam
+             osx-dictionary pdf python replace rg ripgrep
+             tab-bar term vertico vterm wdired wgrep which-key
+             xref xwidget))
   (evil-collection-init)
   )
 
@@ -1147,6 +1147,17 @@ be passed to EVAL-FUNC as its rest arguments"
     (setq lc/copilot-enabled (not lc/copilot-enabled))
     (message (if lc/copilot-enabled "Enabled copilot-mode" "Disabled copilot-mode"))
     (copilot-mode (if lc/copilot-enabled 1 -1)))
+  )
+
+(use-package ellama
+  :commands
+  (ellama-chat)
+  ;; :init
+  ;; (setopt ellama-language "english")
+  ;; (require 'llm-ollama)
+  ;; (setopt ellama-provider
+  ;; 	  (make-llm-ollama
+  ;; 	   :chat-model "zephyr:7b-alpha-q5_K_M" :embedding-model "zephyr:7b-alpha-q5_K_M"))
   )
 
 (use-package magit
@@ -1826,16 +1837,16 @@ Example: `(crafted-tree-sitter-load 'python)'"
   (global-treesit-auto-mode))
 
 (use-package vterm
-  ;; :bind
-  ;; (:map vterm-mode-map
-  ;;       ("<insert-state> M-<left>" . (lambda () (interactive) (vterm-send-key (kbd "M-<left>"))))
-  ;;       ("<insert-state> M-<right>" . (lambda () (interactive) (vterm-send-key (kbd "M-<right>"))))
-  ;;       )
+  :bind
+  (:map vterm-mode-map
+        ("<insert-state> M-<left>" . 'evil-backward-word-begin)
+        ("<insert-state> M-<right>" . 'evil-forward-word-begin))
   :custom
   ;; (vterm-shell (executable-find "fish"))
   (vterm-shell (executable-find "zsh"))
   (vterm-max-scrollback 10000)
-  ;; :config
+  :config
+  (advice-add #'vterm--redraw :around (lambda (fun &rest args) (let ((cursor-type cursor-type)) (apply fun args))))
   ;; (define-key vterm-mode-map (kbd "M-<left>") nil)
   )
 
