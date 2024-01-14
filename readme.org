@@ -132,14 +132,6 @@ In order of appearance in my config:
   (setq use-short-answers t))
 #+end_src
 
-** COMMENT Disable electric-indent-mode
-
-#+begin_src emacs-lisp
-(use-package emacs
-  :init
-  (electric-indent-mode -1))
-#+end_src
-
 ** jump to bookmark
 :PROPERTIES:
 :ID:       BFFC1A23-0EB5-4447-83EB-C5B11E44E7F6
@@ -421,7 +413,14 @@ Note:
   )
 #+end_src
 
-** completion buffer
+** COMMENT completion buffer
+NOTE:
+1. =TAB= once to display completion buffer
+2. two options:
+   - Keep typing and go to 1.
+   - second =TAB= to switch to completion buffer
+3. =C-j= / =C-k= to navigate in completion buffer
+4. =RET= to choose
 
 #+begin_src emacs-lisp
 (use-package emacs
@@ -438,9 +437,17 @@ Note:
   ;; Up/down when completing in the minibuffer
   (define-key minibuffer-local-map (kbd "C-k") #'minibuffer-previous-completion)
   (define-key minibuffer-local-map (kbd "C-j") #'minibuffer-next-completion)
+  ;; (define-key minibuffer-local-map (kbd "RET") #'choose-completion)
+  
+  (define-key completion-list-mode-map (kbd "C-j") #'minibuffer-next-completion)
+  (define-key completion-list-mode-map (kbd "C-k") #'minibuffer-next-completion)
+  ;; (define-key minibuffer-local-map (kbd "RET") #'minibuffer-choose-completion)
+  ;; (define-key minibuffer-local-completion-map (kbd "RET") #'minibuffer-choose-completion)
   ;; Up/down when competing in a normal buffer
   (define-key completion-in-region-mode-map (kbd "C-k") #'minibuffer-previous-completion)
   (define-key completion-in-region-mode-map (kbd "C-j") #'minibuffer-next-completion)
+  ;; (define-key completion-in-region-mode-map (kbd "RET") #'choose-completion)
+  ;; (define-key completion-in-region-mode-map (kbd "RET") #'minibuffer-choose-completion)
   (defun lc/sort-by-alpha-length (elems)
     "Sort ELEMS first alphabetically, then by length."
     (sort elems (lambda (c1 c2)
@@ -490,6 +497,14 @@ Use `mct-sort-sort-by-alpha-length' if no history is available."
 (use-package emacs
   :init
   (add-hook 'window-setup-hook 'toggle-frame-maximized t))
+#+end_src
+
+** No title bar
+
+#+begin_src emacs-lisp
+(use-package emacs
+  :init
+  (add-to-list 'default-frame-alist '(undecorated . t)))
 #+end_src
 
 ** Modus themes
@@ -877,6 +892,20 @@ Note:
   )
 #+end_src
 
+** winum mode
+
+#+begin_src emacs-lisp
+(use-package winum
+  :bind
+  ("<leader>1" . 'winum-select-window-1)
+  ("<leader>2" . 'winum-select-window-2)
+  ("<leader>3" . 'winum-select-window-3)
+  ("<leader>4" . 'winum-select-window-4)
+  :hook
+  (after-init . winum-mode)
+  )
+#+end_src
+
 * Evil
 :PROPERTIES:
 :ID:       EE1017C0-A622-4637-8E13-D8DF41474471
@@ -885,21 +914,19 @@ Note:
 
 #+begin_src emacs-lisp
 (use-package evil
-  :hook
-  (edebug-mode . (lambda () (require 'evil-collection-edebug) (evil-normalize-keymaps)))
   :custom
   (evil-want-C-u-scroll t)
   (evil-lookup-func #'helpful-at-point)
   (evil-split-window-below t)
   (evil-vsplit-window-right t)
   (evil-auto-indent nil)
-  (evil-want-Y-yank-to-eol t)
   (evil-want-C-i-jump t)
   (evil-undo-system 'undo-redo)
   :init
   (defun my/save-excursion-before-indenting (origin-fn &rest args)
     (save-excursion (apply origin-fn args)))
   (setq evil-want-keybinding nil)
+  (setq evil-want-Y-yank-to-eol t)
   (evil-mode)
   :config
   (advice-add #'evil-indent :around #'my/save-excursion-before-indenting)
@@ -1526,122 +1553,11 @@ def convert_miles_to_km():
   (require 'request))
 #+end_src
 
-** COMMENT Search with alpaca
-
-#+begin_src emacs-lisp
-(use-package emacs
-  :bind
-  ("<leader>sa" . 'search-with-alpaca)
-  :init
-  (defcustom alpaca-binary "~/git/alpaca.cpp/chat"
-    "Path to the alpaca.cpp compiled binary")
-
-  (defcustom alpaca-model-path "~/git/alpaca.cpp/ggml-alpaca-7b-q4.bin"
-    "path to alpaca-models")
-
-  (defcustom alpaca-args '("-t" "8")
-    "Arguments to pass to alpaca")
-
-  (defvar swl-current-process-buffer nil "Mini-buffer currently being used to display the process.")
-
-  (defvar swl-query-hist nil)
-
-  (defvar-local swl-process-state nil "State of the swl buffer.")
-  (defvar-local swl-process-start-point nil "Point at which query starts.")
-  (defvar-local swl-process-cmd nil "Original query command running in the buffer.")
-
-  (defvar swl-result-mode-map
-    (let ((map (make-sparse-keymap)))
-      (suppress-keymap map)
-      (define-key map "q" 'swl-quit)
-      (define-key map "r" 'swl-restart-query)
-      map))
-
-  (defun swl-make-buffer-command (command &optional full)
-    "Return a string that invokes alpaca.cpp with a query COMMAND and model MODEL."
-    (format "%s -p \"%s\" --model %s %s"
-              alpaca-binary
-              command
-              alpaca-model-path
-              (string-join alpaca-args " ")))
-
-  (defun swl-clear-running-process ()
-    (when (and swl-current-process-buffer (buffer-live-p swl-current-process-buffer))
-      (let  ((process (get-buffer-process swl-current-process-buffer)))
-        (if process (kill-process process)))
-      (with-current-buffer swl-current-process-buffer
-        (erase-buffer))))
-
-  (defun swl-quit ()
-    (interactive)
-    (swl-clear-running-process)
-    (when swl-current-process-buffer
-      (with-current-buffer swl-current-process-buffer
-        (setq swl-process-cmd nil)
-        (setq swl-process-state nil)))
-    (quit-window))
-
-  (defun swl-run-query (cmd)
-    (if swl-current-process-buffer
-        (swl-clear-running-process))
-    (with-current-buffer swl-current-process-buffer
-      (setq swl-process-state nil)
-      (setq swl-process-cmd cmd)
-      (goto-char 0)
-      (insert "CMD: ") (insert cmd) (insert "\n")
-      (insert "Press r to re-run query and q to quit.\n")
-      (goto-char (point-max))
-      (setq swl-process-start-point (make-marker))
-      (move-marker swl-process-start-point (point))
-      (use-local-map swl-result-mode-map))
-    (let (proc)
-      (setq proc (start-process-shell-command
-                  "swl-search-process"
-                  swl-current-process-buffer
-                  cmd))
-      (when (and proc (processp proc))
-        (set-process-filter proc #'swl-filter))))
-
-  (defun swl-restart-query ()
-    (interactive)
-    (swl-clear-running-process)
-    (when (and swl-current-process-buffer (buffer-live-p swl-current-process-buffer))
-      (with-current-buffer swl-current-process-buffer
-        (when swl-process-cmd
-          (swl-run-query swl-process-cmd)))))
-
-  (defun swl-filter (process event)
-    (when (and swl-current-process-buffer (buffer-live-p swl-current-process-buffer) (process-live-p process))
-      (with-current-buffer swl-current-process-buffer
-        (save-excursion
-          (goto-char (process-mark process))
-          (insert event)
-          (set-marker (process-mark process) (point))
-          (unless swl-process-state
-            (goto-char (point-min))
-            (setq swl-process-state
-                  (search-forward-regexp "sampling parameters:.*\n" nil t))
-            (if swl-process-state
-                (delete-region (marker-position swl-process-start-point) swl-process-state)))))))
-
-  (defun search-with-alpaca (query &optional model-size model-type)
-    (interactive
-     (list
-      (completing-read "" swl-query-hist nil nil nil 'swl-query-hist)))
-    (unless (and swl-current-process-buffer (buffer-live-p swl-current-process-buffer))
-      (setq swl-current-process-buffer (get-buffer-create "*swl-process-buffer*")))
-    (let (cmd)
-      (setq cmd (swl-make-buffer-command query))
-      (swl-run-query cmd)
-      (display-buffer-at-bottom swl-current-process-buffer '(previous-window))
-      (pop-to-buffer swl-current-process-buffer)))
-  )
-#+end_src
-
 ** chatgpt-shell
 
 #+begin_src emacs-lisp
 (use-package chatgpt-shell
+  :commands (chatgpt-shell)
   ;; :vc (:fetcher "github" :repo "xenodium/chatgpt-shell")
   :load-path "~/git/chatgpt-shell"
   :bind
@@ -1680,6 +1596,7 @@ NOTE:
   ("<leader>cc" . 'lc/toggle-copilot-mode)
   (:map copilot-completion-map
         ("<right>" . 'copilot-accept-completion)
+        ("TAB" . 'copilot-accept-completion)
         ("S-TAB" . 'copilot-accept-completion-by-word)
         ("S-<tab>" . 'copilot-accept-completion-by-word)
         ("C-g" . #'copilot-clear-overlay)
@@ -1783,7 +1700,7 @@ NOTE:
   :hook
   ((magit-pre-refresh . diff-hl-magit-pre-refresh)
    (magit-post-refresh . diff-hl-magit-post-refresh)
-   (prog-mode org-mode))
+   (prog-mode org-mode markdown-mode))
   :custom
   (diff-hl-draw-borders nil)
   ;; (setq diff-hl-global-modes '(not org-mode))
@@ -2109,18 +2026,34 @@ NOTE:
   )
 #+end_src
 
+** ox-gfm
+
+#+begin_src emacs-lisp
+(use-package ox-gfm
+  :commands (org-gfm-export-as-markdown org-gfm-export-to-markdown)
+  :after org
+  )
+#+end_src
+
 * Minibuffer
 ** cape
 
+NOTE:
+- File completion will then be available in comments and string literals, but not in normal code
+
 #+begin_src emacs-lisp
 (use-package cape
+  :hook
+  (org-mode . (lambda ()
+                (setq-local completion-at-point-functions
+                            (reduce (lambda (acc func) (cons func acc))
+                                    (list #'cape-elisp-block #'cape-dabbrev #'cape-file)
+                                    :initial-value completion-at-point-functions))))
   :init
-  (add-to-list 'completion-at-point-functions #'cape-file)
-  (add-to-list 'completion-at-point-functions #'cape-dabbrev)
   (advice-add 'pcomplete-completions-at-point :around #'cape-wrap-silent)
   (advice-add 'pcomplete-completions-at-point :around #'cape-wrap-purify)
   )
-    #+end_src
+#+end_src
 
 ** consult
 
@@ -2174,7 +2107,7 @@ NOTE:
     (consult-notes-denote-mode)))
 #+end_src
 
-** COMMENT corfu + kind icon
+** corfu + kind icon
 
 #+begin_src emacs-lisp
 (use-package corfu
@@ -2212,6 +2145,16 @@ NOTE:
     (require 'kind-icon)
     (add-to-list 'corfu-margin-formatters #'kind-icon-margin-formatter)
     (add-hook 'modus-themes-after-load-theme-hook #'(lambda () (interactive) (kind-icon-reset-cache)))))
+#+end_src
+
+** eldoc
+
+#+begin_src emacs-lisp
+(use-package emacs
+  :init
+  (setq eldoc-echo-area-use-multiline-p nil)
+  ;; (setq eldoc-echo-area-prefer-doc-buffer t)
+  )
 #+end_src
 
 ** embark
@@ -2295,9 +2238,17 @@ NOTE:
     (denote
      (format-time-string "%A %e %B %Y") ; format like Tuesday 14 June 2022
      '("journal"))) ; multiple keywords are a list of strings: '("one" "two")
+  (defun lc/select-silo-then-open-or-create (silo)
+    (interactive
+     (list
+      (denote-silo-extras--directory-prompt)))
+    (let ((denote-user-enforced-denote-directory silo))
+      (call-interactively #'denote-open-or-create)))
   :init
   (setq denote-directory "~/OneDrive - The Boston Consulting Group, Inc/Documents/denote")
+  (setq denote-silo-extras-directories (list denote-directory lc/beorg-folder))
   (setq lc/gpt-prompts-file (concat denote-directory "/20230330T145824--useful-gpt-prompts__llm_org.org"))
+  (require 'denote-silo-extras)
   )
 #+end_src
 
@@ -2873,11 +2824,11 @@ any directory proferred by `consult-dir'."
     (interactive)
     (cond
     ;; 1. in denote, open note or create
-     ((string-equal "denote" (persp-current-name)) (call-interactively 'denote-open-or-create))
+     ((string-equal "denote" (persp-current-name)) (call-interactively 'lc/select-silo-then-open-or-create))
     ;; 2. if tab exists, switch
-     ((member "denote" (persp-names)))
+     ((member "denote" (persp-names)) (persp-switch "denote"))
     ;; 3. create new tab and open projeft
-     (t (progn (persp-switch "denote") (call-interactively 'denote-open-or-create)))))
+     (t (progn (persp-switch "denote") (call-interactively 'lc/select-silo-then-open-or-create)))))
   :init
   (setq persp-state-default-file (expand-file-name ".persp" user-emacs-directory))
   (setq persp-mode-prefix-key (kbd "<leader> TAB"))
@@ -3002,13 +2953,39 @@ Example: `(crafted-tree-sitter-load 'python)'"
 (use-package eglot
   :commands (eglot eglot-ensure)
   :hook
-  (python-ts-mode . eglot-ensure)
+  ((python-ts-mode typescript-tsx-mode mojo-mode) . eglot-ensure)
+  (eglot-managed-mode .
+                      (lambda ()
+                        (add-to-list 'eglot-stay-out-of 'eldoc)
+                        (setq-local eldoc-documentation-strategy ; eglot has it's own strategy by default
+                                    'eldoc-documentation-compose-eagerly
+                                    completion-at-point-functions
+                                    (cl-nsubst
+                                     (cape-capf-noninterruptible
+                                      (cape-capf-buster #'eglot-completion-at-point #'string-prefix-p))
+                                     'eglot-completion-at-point
+                                     completion-at-point-functions))))
   :custom
   (eglot-autoshutdown t)
   (eglot-workspace-configuration
    '(:pyright (:useLibraryCodeForTypes t :openFilesOnly :json-false))
    (read-process-output-max (* 1024 1024))
    (eglot-sync-connect 0))
+  :init
+  (defun lc/eglot-workspace-config (server)
+    (let ((config (list :python.analysis ; N.B. eglot does not consider :settings nested!
+                        (list :stubPath (expand-file-name "~/code/python/stubs/common")))))
+      (when-let ((venv (simple-venv-find))
+                 ((not (eq venv 'none)))
+                 (vp (file-name-directory venv))
+                 (vn (file-name-nondirectory venv)))
+        (nconc config (list :python
+                            `(;; :venvPath ,vp :venv ,vn
+                              :pythonPath ,(simple-venv-interpreter venv)))))
+      config))
+  ;; (setq-default eglot-workspace-configuration #'my/eglot-workspace-config)
+  :config
+  (add-to-list 'eglot-server-programs '(mojo-mode . ("mojo-lsp-server")))
   )
 #+end_src
 
@@ -3017,23 +2994,49 @@ Example: `(crafted-tree-sitter-load 'python)'"
 #+begin_src emacs-lisp
 (use-package dape
   :vc (:fetcher "github" :repo "svaante/dape")
-  :demand
+  :bind
+  (:map python-ts-mode-map
+        ("<localleader>dd" . 'dape)
+        ("<localleader>db" . 'dape-toggle-breakpoint)
+        ("<localleader>dc" . 'dape-continue)
+        ("<localleader>dq" . 'dape-quit)
+        ("<localleader>dr" . 'dape-restart)
+        ("<localleader>dn" . 'dape-next)
+        ("<localleader>de" . 'dap-eval-thing-at-point)
+        ("<localleader>di" . 'dap-step-in)
+        ("<localleader>dp" . (lambda ()
+                               (interactive)
+                               (dape `(debugpy
+                                       :program "/Users/cambiaghiluca/git/aa-pipelines/pipelines/__main__.py"
+                                       :args ["--pipelines" "populate_db"]))))
+        )
   :init
   (setq dape--debug-on '(io info error std-server))
   :config
   (add-to-list 'dape-configs
                `(api
-		 modes (python-ts-mode python-mode)
-		 command "/Users/cambiaghiluca/git/aa-api/.direnv/python-3.11/bin/python"
-		 command-args ("-m" "debugpy.adapter")
-		 :type "executable"
-		 :request "launch"
-		 :cwd dape-cwd-fn
-		 ;; :cwd "/Users/cambiaghiluca/aa-api/"
-		 :program dape-find-file-buffer-default
-		 ;; :program "/Users/cambiaghiluca/git/aa-api/api/__main__.py"
-		 :args ["--debug"]
-		 ))
+                 modes (python-ts-mode python-mode)
+                 command "/Users/cambiaghiluca/git/aa-api/.direnv/python-3.11/bin/python"
+                 command-args ("-m" "debugpy.adapter")
+                 :type "executable"
+                 :request "launch"
+                 :cwd dape-cwd-fn
+                 :program "/Users/cambiaghiluca/git/aa-api/api/__main__.py"
+                 :args ["--debug"]
+                 ;; :console "externalTerminal"
+                 :stopOnEntry t
+                 ))
+  (add-to-list 'dape-configs
+               `(ui
+                 modes (python-ts-mode python-mode)
+                 command "/Users/cambiaghiluca/git/aa-api/.direnv/python-3.11/bin/python"
+                 command-args ("-m" "debugpy.adapter")
+                 :type "executable"
+                 :request "launch"
+                 :cwd dape-cwd-fn
+                 :program "/Users/cambiaghiluca/git/aa-api/.direnv/python-3.11/bin/streamlit"
+                 :args ["run" "ui/__main__.py" "--logger.level=info"]
+                 ))
   ;; Add inline variable hints, this feature is highly experimental
   ;; (setq dape-inline-variables t)
 
@@ -3373,6 +3376,67 @@ If invoked with OUTPUT-TO-CURRENT-BUFFER, output the result to current buffer."
   :hook (emacs-lisp-mode))
 #+end_src
 
+** Mojo
+
+From https://github.com/andcarnivorous/mojo-hl/blob/main/mojo.el
+
+#+begin_src emacs-lisp
+(use-package mojo-mode
+  :ensure nil
+  :init
+  ;; Define the keywords, types, and built-in functions of Mojo
+  (defvar mojo-keywords
+    '("fn" "struct" "let" "var" "inout" "owned" ""))
+
+  (defvar mojo-types
+    '("str" "Int" "Float" "Int8" "UInt8" "Int16" "Uint16" "Int32" "UInt32" "Int64" "UInt64" "Float16" "Float32" "Float64" "Bool"))
+
+  (defvar mojo-constants
+    '("True" "False" "null"))
+
+  (defvar mojo-functions
+    '("print" "input" "bool" "error" "builtin_list" "builtin_slice" "coroutine" "debug_assert" "dtype" "float_literal" "io" "rebind" "simd" "string_literal" "stringref" "type_aliases" ))
+
+  ;; Create the regex string for each category of keywords
+  (defvar mojo-keywords-regexp (regexp-opt mojo-keywords 'words))
+  (defvar mojo-type-regexp (regexp-opt mojo-types 'words))
+  (defvar mojo-constant-regexp (regexp-opt mojo-constants 'words))
+  (defvar mojo-functions-regexp (regexp-opt mojo-functions 'words))
+
+  ;; Combine the above regexps into a list.
+  (defvar mojo-font-lock-keywords `((,mojo-type-regexp . font-lock-type-face)
+                                    (,mojo-constant-regexp . font-lock-constant-face)
+                                    (,mojo-functions-regexp . font-lock-function-name-face)
+                                    (,mojo-keywords-regexp . font-lock-keyword-face)))
+
+  (defun mojo-compile ()
+    "Compile current mojo file."
+    (interactive)
+    (compile (concat "mojo " buffer-file-name)))
+
+  (defvar-keymap mojo-mode-map
+    :doc "Keymap for `mojo-mode'."
+    "C-c C-c" #'mojo-compile)
+
+  ;;Define the major mode.
+  (define-derived-mode mojo-mode python-mode "Mojo"
+    "Major mode for editing Mojo language code." "mojo mode"
+    (font-lock-add-keywords nil mojo-font-lock-keywords 'APPEND)
+
+    ;; Set up the indent function.
+    (setq-local indent-line-function 'python-indent-line-function))
+
+  (defvar mojo-mode-hook nil "Hook for mojo-mode.")
+
+  (add-hook 'mojo-mode-hook
+            (lambda ()
+              (set (make-local-variable 'compile-command)
+                   (concat "mojo " buffer-file-name))))
+
+  (add-to-list 'auto-mode-alist '("\\.mojo\\'" . mojo-mode))
+  )
+#+end_src
+
 ** Nix
 
 #+begin_src emacs-lisp
@@ -3381,21 +3445,6 @@ If invoked with OUTPUT-TO-CURRENT-BUFFER, output the result to current buffer."
 #+end_src
 
 ** Python
-*** COMMENT python-ts-mode
-
-#+begin_src emacs-lisp
-(use-package python-mode
-  :ensure nil
-  :preface
-  (defun lc/init-py-ts-mode ()
-    (when (treesit-ready-p 'python)
-      (unless (member '(python-mode . python-ts-mode) major-mode-remap-alist)
-        (add-to-list 'major-mode-remap-alist '(python-mode . python-ts-mode)))))
-  :init
-  (lc/init-py-ts-mode)
-  (setq python-indent-guess-indent-offset nil))
-#+end_src
-
 *** black
 
 #+begin_src emacs-lisp
@@ -3779,6 +3828,7 @@ Notes:
 #+end_src
 
 ** Javascript / typescript
+
 #+begin_src emacs-lisp
 (use-package rjsx-mode
   :hook (rjsx-mode . rainbow-delimiters-mode)
@@ -3821,6 +3871,18 @@ Notes:
 
 #+begin_src emacs-lisp
 (use-package yaml-mode)
+#+end_src
+
+** terraform
+
+#+begin_src emacs-lisp
+(use-package terraform-mode)
+#+end_src
+
+** docker
+
+#+begin_src emacs-lisp
+(use-package dockerfile-mode)
 #+end_src
 
 * To be fixed

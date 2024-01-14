@@ -244,62 +244,11 @@ windows (unlike `doom/window-maximize-buffer'). Activate again to undo."
 
 (use-package emacs
   :init
-  (setq tab-always-indent 'complete)
-  ;; hide completions buffer after completion
-  (setq completion-auto-help t)
-  ;; switch to completions buffer on second tab
-  (setq completion-auto-select 'second-tab)
-  ;; show one column in completions buffer
-  (setq completions-format 'one-column)
-  (setq completions-max-height 20)
-
-  ;; Up/down when completing in the minibuffer
-  (define-key minibuffer-local-map (kbd "C-k") #'minibuffer-previous-completion)
-  (define-key minibuffer-local-map (kbd "C-j") #'minibuffer-next-completion)
-  ;; Up/down when competing in a normal buffer
-  (define-key completion-in-region-mode-map (kbd "C-k") #'minibuffer-previous-completion)
-  (define-key completion-in-region-mode-map (kbd "C-j") #'minibuffer-next-completion)
-  (defun lc/sort-by-alpha-length (elems)
-    "Sort ELEMS first alphabetically, then by length."
-    (sort elems (lambda (c1 c2)
-                  (or (string-version-lessp c1 c2)
-                      (< (length c1) (length c2))))))
-
-  (defun lc/sort-by-history (elems)
-    "Sort ELEMS by minibuffer history.
-Use `mct-sort-sort-by-alpha-length' if no history is available."
-    (if-let ((hist (and (not (eq minibuffer-history-variable t))
-			(symbol-value minibuffer-history-variable))))
-	(minibuffer--sort-by-position hist elems)
-      (lc/sort-by-alpha-length elems)))
-
-  (defun lc/completion-category ()
-    "Return completion category."
-    (when-let ((window (active-minibuffer-window)))
-      (with-current-buffer (window-buffer window)
-	(completion-metadata-get
-	 (completion-metadata (buffer-substring-no-properties
-                               (minibuffer-prompt-end)
-                               (max (minibuffer-prompt-end) (point)))
-                              minibuffer-completion-table
-                              minibuffer-completion-predicate)
-	 'category))))
-
-  (defun lc/sort-multi-category (elems)
-    "Sort ELEMS per completion category."
-    (pcase (lc/completion-category)
-      ('nil elems) ; no sorting
-      ('kill-ring elems)
-      ('project-file (lc/sort-by-alpha-length elems))
-      (_ (lc/sort-by-history elems))))
-
-  (setq completions-sort #'lc/sort-multi-category)
-
-  )
+  (add-hook 'window-setup-hook 'toggle-frame-maximized t))
 
 (use-package emacs
   :init
-  (add-hook 'window-setup-hook 'toggle-frame-maximized t))
+  (add-to-list 'default-frame-alist '(undecorated . t)))
 
 (use-package emacs
   :if (not lc/use-lambda-theme)
@@ -598,22 +547,30 @@ Use `mct-sort-sort-by-alpha-length' if no history is available."
   ;; (centaur-tabs-group-by-projectile-project)
   )
 
-(use-package evil
+(use-package winum
+  :bind
+  ("<leader>1" . 'winum-select-window-1)
+  ("<leader>2" . 'winum-select-window-2)
+  ("<leader>3" . 'winum-select-window-3)
+  ("<leader>4" . 'winum-select-window-4)
   :hook
-  (edebug-mode . (lambda () (require 'evil-collection-edebug) (evil-normalize-keymaps)))
+  (after-init . winum-mode)
+  )
+
+(use-package evil
   :custom
   (evil-want-C-u-scroll t)
   (evil-lookup-func #'helpful-at-point)
   (evil-split-window-below t)
   (evil-vsplit-window-right t)
   (evil-auto-indent nil)
-  (evil-want-Y-yank-to-eol t)
   (evil-want-C-i-jump t)
   (evil-undo-system 'undo-redo)
   :init
   (defun my/save-excursion-before-indenting (origin-fn &rest args)
     (save-excursion (apply origin-fn args)))
   (setq evil-want-keybinding nil)
+  (setq evil-want-Y-yank-to-eol t)
   (evil-mode)
   :config
   (advice-add #'evil-indent :around #'my/save-excursion-before-indenting)
@@ -1106,6 +1063,7 @@ be passed to EVAL-FUNC as its rest arguments"
   (require 'request))
 
 (use-package chatgpt-shell
+  :commands (chatgpt-shell)
   ;; :vc (:fetcher "github" :repo "xenodium/chatgpt-shell")
   :load-path "~/git/chatgpt-shell"
   :bind
@@ -1136,6 +1094,7 @@ be passed to EVAL-FUNC as its rest arguments"
   ("<leader>cc" . 'lc/toggle-copilot-mode)
   (:map copilot-completion-map
         ("<right>" . 'copilot-accept-completion)
+        ("TAB" . 'copilot-accept-completion)
         ("S-TAB" . 'copilot-accept-completion-by-word)
         ("S-<tab>" . 'copilot-accept-completion-by-word)
         ("C-g" . #'copilot-clear-overlay)
@@ -1219,7 +1178,7 @@ be passed to EVAL-FUNC as its rest arguments"
   :hook
   ((magit-pre-refresh . diff-hl-magit-pre-refresh)
    (magit-post-refresh . diff-hl-magit-post-refresh)
-   (prog-mode org-mode))
+   (prog-mode org-mode markdown-mode))
   :custom
   (diff-hl-draw-borders nil)
   ;; (setq diff-hl-global-modes '(not org-mode))
@@ -1468,10 +1427,19 @@ be passed to EVAL-FUNC as its rest arguments"
             (start-process "org-html-preview" nil "xdg-open" temp-file-path))))))
   )
 
+(use-package ox-gfm
+  :commands (org-gfm-export-as-markdown org-gfm-export-to-markdown)
+  :after org
+  )
+
 (use-package cape
+  :hook
+  (org-mode . (lambda ()
+                (setq-local completion-at-point-functions
+                            (reduce (lambda (acc func) (cons func acc))
+                                    (list #'cape-elisp-block #'cape-dabbrev #'cape-file)
+                                    :initial-value completion-at-point-functions))))
   :init
-  (add-to-list 'completion-at-point-functions #'cape-file)
-  (add-to-list 'completion-at-point-functions #'cape-dabbrev)
   (advice-add 'pcomplete-completions-at-point :around #'cape-wrap-silent)
   (advice-add 'pcomplete-completions-at-point :around #'cape-wrap-purify)
   )
@@ -1519,6 +1487,48 @@ be passed to EVAL-FUNC as its rest arguments"
   :config
   (when (locate-library "denote")
     (consult-notes-denote-mode)))
+
+(use-package corfu
+  :hook
+  (prog-mode . corfu-mode)
+  (eshell-mode . (lambda ()
+                   (setq-local corfu-quit-at-boundary t
+                               corfu-quit-no-match t
+                               corfu-auto nil)
+		   (corfu-mode)))
+  :bind
+  ("<insert-state> C-j" . nil)
+  ("<leader>tc" . (lambda () (interactive) (corfu-mode)))
+  (:map corfu-map
+        ("<insert-state><escape>" . 'corfu-quit)
+        ("<insert-state> RET" . 'corfu-complete)
+        ("<insert-state> C-j" . 'corfu-next)
+        ("<insert-state> C-k" . 'corfu-previous)
+        )
+  :custom
+  (corfu-min-width 80)
+  ;; Always have the same width
+  (corfu-max-width corfu-min-width)
+  ;; (corfu-auto nil)
+  (tab-always-indent 'complete)
+  )
+
+(use-package kind-icon
+  :custom
+  (kind-icon-default-face 'corfu-default) ; to compute blended backgrounds correctly
+  (kind-icon-blend-background nil)  ; Use midpoint color between foreground and background colors ("blended")?
+  (kind-icon-blend-frac 0.08)
+  :init
+  (with-eval-after-load 'corfu
+    (require 'kind-icon)
+    (add-to-list 'corfu-margin-formatters #'kind-icon-margin-formatter)
+    (add-hook 'modus-themes-after-load-theme-hook #'(lambda () (interactive) (kind-icon-reset-cache)))))
+
+(use-package emacs
+  :init
+  (setq eldoc-echo-area-use-multiline-p nil)
+  ;; (setq eldoc-echo-area-prefer-doc-buffer t)
+  )
 
 (use-package embark
   :bind
@@ -1578,9 +1588,17 @@ be passed to EVAL-FUNC as its rest arguments"
     (denote
      (format-time-string "%A %e %B %Y") ; format like Tuesday 14 June 2022
      '("journal"))) ; multiple keywords are a list of strings: '("one" "two")
+  (defun lc/select-silo-then-open-or-create (silo)
+    (interactive
+     (list
+      (denote-silo-extras--directory-prompt)))
+    (let ((denote-user-enforced-denote-directory silo))
+      (call-interactively #'denote-open-or-create)))
   :init
   (setq denote-directory "~/OneDrive - The Boston Consulting Group, Inc/Documents/denote")
+  (setq denote-silo-extras-directories (list denote-directory lc/beorg-folder))
   (setq lc/gpt-prompts-file (concat denote-directory "/20230330T145824--useful-gpt-prompts__llm_org.org"))
+  (require 'denote-silo-extras)
   )
 
 (use-package denote-menu
@@ -1777,11 +1795,11 @@ be passed to EVAL-FUNC as its rest arguments"
     (interactive)
     (cond
     ;; 1. in denote, open note or create
-     ((string-equal "denote" (persp-current-name)) (call-interactively 'denote-open-or-create))
+     ((string-equal "denote" (persp-current-name)) (call-interactively 'lc/select-silo-then-open-or-create))
     ;; 2. if tab exists, switch
-     ((member "denote" (persp-names)))
+     ((member "denote" (persp-names)) (persp-switch "denote"))
     ;; 3. create new tab and open projeft
-     (t (progn (persp-switch "denote") (call-interactively 'denote-open-or-create)))))
+     (t (progn (persp-switch "denote") (call-interactively 'lc/select-silo-then-open-or-create)))))
   :init
   (setq persp-state-default-file (expand-file-name ".persp" user-emacs-directory))
   (setq persp-mode-prefix-key (kbd "<leader> TAB"))
@@ -1873,34 +1891,86 @@ Example: `(crafted-tree-sitter-load 'python)'"
 (use-package eglot
   :commands (eglot eglot-ensure)
   :hook
-  (python-ts-mode . eglot-ensure)
+  ((python-ts-mode typescript-tsx-mode mojo-mode) . eglot-ensure)
+  (eglot-managed-mode .
+                      (lambda ()
+                        (add-to-list 'eglot-stay-out-of 'eldoc)
+                        (setq-local eldoc-documentation-strategy ; eglot has it's own strategy by default
+                                    'eldoc-documentation-compose-eagerly
+                                    completion-at-point-functions
+                                    (cl-nsubst
+                                     (cape-capf-noninterruptible
+                                      (cape-capf-buster #'eglot-completion-at-point #'string-prefix-p))
+                                     'eglot-completion-at-point
+                                     completion-at-point-functions))))
   :custom
   (eglot-autoshutdown t)
   (eglot-workspace-configuration
    '(:pyright (:useLibraryCodeForTypes t :openFilesOnly :json-false))
    (read-process-output-max (* 1024 1024))
    (eglot-sync-connect 0))
+  :init
+  (defun lc/eglot-workspace-config (server)
+    (let ((config (list :python.analysis ; N.B. eglot does not consider :settings nested!
+                        (list :stubPath (expand-file-name "~/code/python/stubs/common")))))
+      (when-let ((venv (simple-venv-find))
+                 ((not (eq venv 'none)))
+                 (vp (file-name-directory venv))
+                 (vn (file-name-nondirectory venv)))
+        (nconc config (list :python
+                            `(;; :venvPath ,vp :venv ,vn
+                              :pythonPath ,(simple-venv-interpreter venv)))))
+      config))
+  ;; (setq-default eglot-workspace-configuration #'my/eglot-workspace-config)
+  :config
+  (add-to-list 'eglot-server-programs '(mojo-mode . ("mojo-lsp-server")))
   )
 
 (use-package dape
   :vc (:fetcher "github" :repo "svaante/dape")
-  :demand
+  :bind
+  (:map python-ts-mode-map
+        ("<localleader>dd" . 'dape)
+        ("<localleader>db" . 'dape-toggle-breakpoint)
+        ("<localleader>dc" . 'dape-continue)
+        ("<localleader>dq" . 'dape-quit)
+        ("<localleader>dr" . 'dape-restart)
+        ("<localleader>dn" . 'dape-next)
+        ("<localleader>de" . 'dap-eval-thing-at-point)
+        ("<localleader>di" . 'dap-step-in)
+        ("<localleader>dp" . (lambda ()
+                               (interactive)
+                               (dape `(debugpy
+                                       :program "/Users/cambiaghiluca/git/aa-pipelines/pipelines/__main__.py"
+                                       :args ["--pipelines" "populate_db"]))))
+        )
   :init
   (setq dape--debug-on '(io info error std-server))
   :config
   (add-to-list 'dape-configs
                `(api
-		 modes (python-ts-mode python-mode)
-		 command "/Users/cambiaghiluca/git/aa-api/.direnv/python-3.11/bin/python"
-		 command-args ("-m" "debugpy.adapter")
-		 :type "executable"
-		 :request "launch"
-		 :cwd dape-cwd-fn
-		 ;; :cwd "/Users/cambiaghiluca/aa-api/"
-		 :program dape-find-file-buffer-default
-		 ;; :program "/Users/cambiaghiluca/git/aa-api/api/__main__.py"
-		 :args ["--debug"]
-		 ))
+                 modes (python-ts-mode python-mode)
+                 command "/Users/cambiaghiluca/git/aa-api/.direnv/python-3.11/bin/python"
+                 command-args ("-m" "debugpy.adapter")
+                 :type "executable"
+                 :request "launch"
+                 :cwd dape-cwd-fn
+                 :program "/Users/cambiaghiluca/git/aa-api/api/__main__.py"
+                 :args ["--debug"]
+                 ;; :console "externalTerminal"
+                 :stopOnEntry t
+                 ))
+  (add-to-list 'dape-configs
+               `(ui
+                 modes (python-ts-mode python-mode)
+                 command "/Users/cambiaghiluca/git/aa-api/.direnv/python-3.11/bin/python"
+                 command-args ("-m" "debugpy.adapter")
+                 :type "executable"
+                 :request "launch"
+                 :cwd dape-cwd-fn
+                 :program "/Users/cambiaghiluca/git/aa-api/.direnv/python-3.11/bin/streamlit"
+                 :args ["run" "ui/__main__.py" "--logger.level=info"]
+                 ))
   ;; Add inline variable hints, this feature is highly experimental
   ;; (setq dape-inline-variables t)
 
@@ -1975,6 +2045,61 @@ Example: `(crafted-tree-sitter-load 'python)'"
 ;; keep the file indented
 (use-package aggressive-indent
   :hook (emacs-lisp-mode))
+
+(use-package mojo-mode
+  :ensure nil
+  :init
+  ;; Define the keywords, types, and built-in functions of Mojo
+  (defvar mojo-keywords
+    '("fn" "struct" "let" "var" "inout" "owned" ""))
+
+  (defvar mojo-types
+    '("str" "Int" "Float" "Int8" "UInt8" "Int16" "Uint16" "Int32" "UInt32" "Int64" "UInt64" "Float16" "Float32" "Float64" "Bool"))
+
+  (defvar mojo-constants
+    '("True" "False" "null"))
+
+  (defvar mojo-functions
+    '("print" "input" "bool" "error" "builtin_list" "builtin_slice" "coroutine" "debug_assert" "dtype" "float_literal" "io" "rebind" "simd" "string_literal" "stringref" "type_aliases" ))
+
+  ;; Create the regex string for each category of keywords
+  (defvar mojo-keywords-regexp (regexp-opt mojo-keywords 'words))
+  (defvar mojo-type-regexp (regexp-opt mojo-types 'words))
+  (defvar mojo-constant-regexp (regexp-opt mojo-constants 'words))
+  (defvar mojo-functions-regexp (regexp-opt mojo-functions 'words))
+
+  ;; Combine the above regexps into a list.
+  (defvar mojo-font-lock-keywords `((,mojo-type-regexp . font-lock-type-face)
+                                    (,mojo-constant-regexp . font-lock-constant-face)
+                                    (,mojo-functions-regexp . font-lock-function-name-face)
+                                    (,mojo-keywords-regexp . font-lock-keyword-face)))
+
+  (defun mojo-compile ()
+    "Compile current mojo file."
+    (interactive)
+    (compile (concat "mojo " buffer-file-name)))
+
+  (defvar-keymap mojo-mode-map
+    :doc "Keymap for `mojo-mode'."
+    "C-c C-c" #'mojo-compile)
+
+  ;;Define the major mode.
+  (define-derived-mode mojo-mode python-mode "Mojo"
+    "Major mode for editing Mojo language code." "mojo mode"
+    (font-lock-add-keywords nil mojo-font-lock-keywords 'APPEND)
+
+    ;; Set up the indent function.
+    (setq-local indent-line-function 'python-indent-line-function))
+
+  (defvar mojo-mode-hook nil "Hook for mojo-mode.")
+
+  (add-hook 'mojo-mode-hook
+            (lambda ()
+              (set (make-local-variable 'compile-command)
+                   (concat "mojo " buffer-file-name))))
+
+  (add-to-list 'auto-mode-alist '("\\.mojo\\'" . mojo-mode))
+  )
 
 (use-package nix-mode
 :mode "\\.nix\\'")
@@ -2303,3 +2428,7 @@ Example: `(crafted-tree-sitter-load 'python)'"
   )
 
 (use-package yaml-mode)
+
+(use-package terraform-mode)
+
+(use-package dockerfile-mode)

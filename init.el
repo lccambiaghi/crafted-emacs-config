@@ -38,9 +38,11 @@
  ;; If there is more than one, they won't work right.
  '(org-fold-catch-invisible-edits 'error nil nil "Customized with use-package org")
  '(package-selected-packages
-   '(ellama weblorg templatel perspective-tabs project-tab-groups dape))
+   '(mojo-hl mojo-mode winum dockerfile-mode ox-slack ox-gfm terraform-mode ellama weblorg templatel perspective-tabs project-tab-groups dape))
  '(package-vc-selected-packages
-   '((perspective-tabs :vc-backend Git :url "https://git.sr.ht/~woozong/perspective-tabs")
+   '((mojo-hl :vc-backend Git :url "https://github.com/andcarnivorous/mojo-hl")
+     (mojo-mode :vc-backend Git :url "https://github.com/andcarnivorous/mojo-hl")
+     (perspective-tabs :vc-backend Git :url "https://git.sr.ht/~woozong/perspective-tabs")
      (dape :vc-backend Git :url "https://github.com/svaante/dape")))
  '(safe-local-variable-values
    '((eval add-hook 'after-save-hook
